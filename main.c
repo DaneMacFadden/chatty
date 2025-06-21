@@ -20,36 +20,37 @@
 
 #define MAXBUFSIZE 30
 
-/* Socket variables */
 int socketfd, socketfd_send;
 
-/* Address info */
 struct addrinfo hints, remote_hints;
-struct addrinfo *servinfo, *remote_servinfo; /* points to results */
+struct addrinfo *servinfo, *remote_servinfo; 
 
 char *remote_machine, *local_port, *remote_port;
 
 void *input(void *arg) {
-	printf("Thread made it!\n");
-	//while (1) {
+	while (1) {
 	/*
 	 * Accept input
 	 */
-	//}
+	}	
 	return 0;
 }
 
+void *sender(void *arg) {
+	return 0;	
+}
+
 int main(int argc, char* argv[]) {
-	pthread_t input_thread;
-	char *msg = "Test";
+	pthread_t input_thread, send_thread, receive_thread;
+	char *msg;
 	struct addrinfo *p, *q;
-	int status;	
-/*
+	int status;
+	int yes = 1;
+
 	if (argc != 4) {
 		printf("Wrong number of arguments\n");
 		return -1;
 	}
-*/
 
 	local_port = argv[1];
 	remote_machine = argv[2];
@@ -57,10 +58,10 @@ int main(int argc, char* argv[]) {
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	if ((status = getaddrinfo(NULL, local_port, &hints, &servinfo)) != 0) {
+	if ((status = getaddrinfo(remote_machine, local_port, &hints, &servinfo)) != 0) {
 		fprintf(stderr,"getaddrinfo error: %s\n",gai_strerror(status));
 		exit(1);
 	}
@@ -74,9 +75,6 @@ int main(int argc, char* argv[]) {
 			continue;
 		}
 
-		/* Set socket to nonblocking */
-		fcntl(socketfd, F_SETFL, O_NONBLOCK);
-		
 		/* Bind */
 		if (bind(socketfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
 			close(socketfd);
@@ -97,7 +95,7 @@ int main(int argc, char* argv[]) {
 	/* Get remote info */
 	memset(&remote_hints, 0, sizeof(remote_hints));
 	remote_hints.ai_family = AF_INET;
-	remote_hints.ai_socktype = SOCK_DGRAM;
+	remote_hints.ai_socktype = SOCK_STREAM;
 	
 	if ((status = getaddrinfo(remote_machine, remote_port, &remote_hints,
 					&remote_servinfo)) != 0) {

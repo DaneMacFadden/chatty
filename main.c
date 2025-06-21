@@ -19,13 +19,7 @@
 #include <fcntl.h>
 
 #define MAXBUFSIZE 30
-
-int socketfd;
-
-struct addrinfo hints, remote_hints;
-struct addrinfo *servinfo, *remote_servinfo; 
-
-char *remote_machine, *local_port, *remote_port;
+#define BACKLOG 10
 
 void *input(void *arg) {
 	while (1) {
@@ -40,11 +34,25 @@ void *sender(void *arg) {
 	return 0;	
 }
 
+void *get_in_addr(struct sockaddr *sa) {
+    if (sa->sa_family == AF_INET) {
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    }
+
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+
 int main(int argc, char* argv[]) {
 	pthread_t input_thread, send_thread, receive_thread;
-	char *msg;
+	socklen_t sin_size;
 	struct addrinfo *p, *q;
-	int status;
+	struct addrinfo hints, remote_hints;
+	struct addrinfo *servinfo, *remote_servinfo; 
+	struct sockaddr_storage their_addr;
+	char s[INET6_ADDRSTRLEN];	
+	char *msg;
+	char *remote_machine, *local_port, *remote_port;
+	int status, socketfd, confd;
 	int yes = 1;
 
 	if (argc != 4) {
@@ -55,7 +63,6 @@ int main(int argc, char* argv[]) {
 	local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
-
 
 	if (atoi(local_port) < atoi(remote_port)) {
 		/* Congrats, you're the server */

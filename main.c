@@ -56,6 +56,7 @@ int main(int argc, char* argv[]) {
 	remote_machine = argv[2];
 	remote_port = argv[3];
 
+
 	if (atoi(local_port) < atoi(remote_port)) {
 		/* Congrats, you're the server */
 		memset(&hints, 0, sizeof(hints));
@@ -93,6 +94,27 @@ int main(int argc, char* argv[]) {
 		else {
 			servinfo = p;
 		}
+		
+		freeaddrinfo(servinfo);
+		if (listen(socketfd, BACKLOG) == -1) {
+			perror("listen");
+			exit(1);
+		}
+		
+		while (1) {
+			sin_size = sizeof their_addr;
+			confd = accept(socketfd, (struct sockaddr *)&their_addr, &sin_size);
+			if (confd == -1) {
+				perror("accept");
+				continue;
+			}
+		inet_ntop(their_addr.ss_family,
+			    get_in_addr((struct sockaddr *)&their_addr),
+			    s, sizeof s);
+		printf("server: got connection from %s\n", s);
+
+		}
+
 	}
 	else {
 		/* You're the client */
@@ -128,11 +150,10 @@ int main(int argc, char* argv[]) {
 	}
 
 	
-	
-	
-
-
 	pthread_create(&input_thread, NULL, input, (void*) msg);
+	
+	
+
 
 	pthread_join(input_thread, NULL);
 	return 0;

@@ -169,7 +169,7 @@ int main(int argc, char* argv[]) {
 			servinfo = q;
 		}
 	  printf("Connected!\n");
-
+    buf = calloc(4, sizeof(char));
     recv(socketfd, &buf,  20, 0);
     printf("%s\n", buf);
   }

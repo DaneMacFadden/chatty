@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
 				continue;
 			}
       /* Allow reuse of socket despite binding */
-      if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+      if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &yes,
           sizeof(int)) == -1) {
         perror("setsockopt");
         exit(1);

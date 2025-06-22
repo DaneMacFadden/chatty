@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
 	char *remote_machine, *local_port, *remote_port;
 	int status, socketfd, confd, len;
 	int yes = 1;
-  char *buf;
+  char buf[10];
 
 	if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \ 
@@ -169,7 +169,6 @@ int main(int argc, char* argv[]) {
 			servinfo = q;
 		}
 	  printf("Connected!\n");
-    buf = calloc(4, sizeof(char));
     recv(socketfd, &buf,  20, 0);
     printf("%s\n", buf);
   }

@@ -85,7 +85,12 @@ int main(int argc, char* argv[]) {
 				perror("Server: socket");
 				continue;
 			}
-
+      /* Allow reuse of socket despite binding */
+      if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+          sizeof(int)) == -1) {
+        perror("setsockopt");
+        exit(1);
+      }
 			/* Bind */
 			if (bind(socketfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
 				close(socketfd);
@@ -109,21 +114,17 @@ int main(int argc, char* argv[]) {
 			exit(1);
 		}
 		
-		while (1) {
-			sin_size = sizeof their_addr;
-			printf("Waiting for connection...\n");
-			confd = accept(socketfd, (struct sockaddr *)&their_addr, &sin_size);
-			if (confd == -1) {
-				perror("accept");
-				continue;
-			}
-			inet_ntop(their_addr.ss_family,
-				  get_in_addr((struct sockaddr *)&their_addr),
-			    	  s,
-				  sizeof s);
-			printf("Getting chatty with %s\n", s);
-
-		}
+    sin_size = sizeof their_addr;
+    printf("Waiting for connection...\n");
+    confd = accept(socketfd, (struct sockaddr *)&their_addr, &sin_size);
+    if (confd == -1) {
+      perror("accept");
+    }
+    inet_ntop(their_addr.ss_family,
+        get_in_addr((struct sockaddr *)&their_addr),
+            s,
+        sizeof s);
+    printf("Getting chatty with %s\n", s);
 
 	}
 	else {
@@ -146,15 +147,15 @@ int main(int argc, char* argv[]) {
 				perror("Client: socket");
 				continue;
 			}
-      inet_ntop(q->ai_family, get_in_addr((struct sockaddr *)q->ai_addr), 
-        s, sizeof s);
-        printf("Client: attempting connection to %s\n", s);
+		      	inet_ntop(q->ai_family, get_in_addr((struct sockaddr *)q->ai_addr), 
+				  s, sizeof s);
+			printf("Client: attempting connection to %s\n", s);
 
-        if (connect(socketfd, q->ai_addr, q->ai_addrlen) == -1) {
-          perror("Client: connect");
-          close(socketfd);
-          continue;
-      }
+			if (connect(socketfd, q->ai_addr, q->ai_addrlen) == -1) {
+			  perror("Client: connect");
+			  close(socketfd);
+			  continue;
+      			}
 			break;
 		}
 
@@ -168,10 +169,10 @@ int main(int argc, char* argv[]) {
 	  printf("Connected!\n");
   }
 
-	
+/*	
 	pthread_create(&input_thread, NULL, input, (void*) msg);
-	
 	pthread_join(input_thread, NULL);
+*/	
 	return 0;
 }
 

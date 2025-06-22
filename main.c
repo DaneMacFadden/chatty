@@ -46,8 +46,8 @@ int main(int argc, char* argv[]) {
 	pthread_t input_thread, send_thread, receive_thread;
 	socklen_t sin_size;
 	struct addrinfo *p, *q;
-	struct addrinfo hints, remote_hints;
-	struct addrinfo *servinfo, *remote_servinfo; 
+	struct addrinfo hints;
+	struct addrinfo *servinfo; 
 	struct sockaddr_storage their_addr;
 	char s[INET6_ADDRSTRLEN];	
 	char *msg;
@@ -56,7 +56,8 @@ int main(int argc, char* argv[]) {
 	int yes = 1;
 
 	if (argc != 4) {
-		printf("Wrong number of arguments\n");
+		printf("Wrong number of arguments. Usage: ./chatty <local port> \ 
+		<remote IP> <remote port>\n");
 		return -1;
 	}
 
@@ -81,21 +82,21 @@ int main(int argc, char* argv[]) {
 			if ((socketfd = socket(p->ai_family, 
 					p->ai_socktype, 
 					p->ai_protocol)) == -1) {
-				perror("listener: socket");
+				perror("Server: socket");
 				continue;
 			}
 
 			/* Bind */
 			if (bind(socketfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
 				close(socketfd);
-				perror("listener: bind");
+				perror("Server: bind");
 				continue;
 			}	
 
 			break;
 		}
 		if (p == NULL) {
-			fprintf(stderr, "listener: failed to bind socket\n");
+			fprintf(stderr, "Server: failed to bind socket\n");
 			return 2;
 		}
 		else {
@@ -110,15 +111,17 @@ int main(int argc, char* argv[]) {
 		
 		while (1) {
 			sin_size = sizeof their_addr;
+			printf("Waiting for connection...\n");
 			confd = accept(socketfd, (struct sockaddr *)&their_addr, &sin_size);
 			if (confd == -1) {
 				perror("accept");
 				continue;
 			}
-		inet_ntop(their_addr.ss_family,
-			    get_in_addr((struct sockaddr *)&their_addr),
-			    s, sizeof s);
-		printf("server: got connection from %s\n", s);
+			inet_ntop(their_addr.ss_family,
+				  get_in_addr((struct sockaddr *)&their_addr),
+			    	  s,
+				  sizeof s);
+			printf("Getting chatty with %s\n", s);
 
 		}
 
@@ -126,42 +129,47 @@ int main(int argc, char* argv[]) {
 	else {
 		/* You're the client */
 		/* Get remote info */
-		memset(&remote_hints, 0, sizeof(remote_hints));
-		remote_hints.ai_family = AF_INET;
-		remote_hints.ai_socktype = SOCK_STREAM;
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_STREAM;
 		
-		if ((status = getaddrinfo(remote_machine, remote_port, &remote_hints,
-						&remote_servinfo)) != 0) {
+		if ((status = getaddrinfo(remote_machine, remote_port, &hints,
+						&servinfo)) != 0) {
 			fprintf(stderr,"getaddrinfo error: %s\n",gai_strerror(status));
 			exit(1);
 		}
-		for (q = remote_servinfo; q != NULL; q = q->ai_next) {
+		for (q = servinfo; q != NULL; q = q->ai_next) {
 			/* Create socket */
 			if ((socketfd = socket(q->ai_family,
 					q->ai_socktype,
 					q->ai_protocol)) == -1) {
-				perror("talker: socket");
+				perror("Client: socket");
 				continue;
 			}
+      inet_ntop(q->ai_family, get_in_addr((struct sockaddr *)q->ai_addr), 
+        s, sizeof s);
+        printf("Client: attempting connection to %s\n", s);
 
+        if (connect(socketfd, q->ai_addr, q->ai_addrlen) == -1) {
+          perror("Client: connect");
+          close(socketfd);
+          continue;
+      }
 			break;
 		}
 
 		if (q == NULL) {
-			fprintf(stderr, "talker: failed to create socket\n");
+			fprintf(stderr, "Client: failed to create socket\n");
 			return 2;
 		}
 		else {
-			remote_servinfo = q;
+			servinfo = q;
 		}
 	}
 
 	
 	pthread_create(&input_thread, NULL, input, (void*) msg);
 	
-	
-
-
 	pthread_join(input_thread, NULL);
 	return 0;
 }

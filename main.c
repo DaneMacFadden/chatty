@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 	char s[INET6_ADDRSTRLEN];	
 	char *msg;
 	char *remote_machine, *local_port, *remote_port;
-	int status, socketfd, confd;
+	int status, socketfd, confd, len;
 	int yes = 1;
 
 	if (argc != 4) {
@@ -125,7 +125,8 @@ int main(int argc, char* argv[]) {
             s,
         sizeof s);
     printf("Getting chatty with %s\n", s);
-
+    len = strlen("test");
+    send(confd, "test", len, 0);
 	}
 	else {
 		/* You're the client */

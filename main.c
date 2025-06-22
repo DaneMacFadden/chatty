@@ -165,7 +165,8 @@ int main(int argc, char* argv[]) {
 		else {
 			servinfo = q;
 		}
-	}
+	  printf("Connected!\n");
+  }
 
 	
 	pthread_create(&input_thread, NULL, input, (void*) msg);

@@ -16,7 +16,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <fcntl.h>
+#include <list.h>
 
 #define MAXBUFSIZE 30
 #define BACKLOG 10
@@ -31,7 +31,12 @@ void *input(void *arg) {
 }
 
 void *sender(void *arg) {
-	return 0;	
+  	
+  return 0;	
+}
+
+void *receiver(void *arg) {
+  return 0;
 }
 
 void *get_in_addr(struct sockaddr *sa) {
@@ -126,8 +131,6 @@ int main(int argc, char* argv[]) {
             s,
         sizeof s);
     printf("Getting chatty with %s\n", s);
-    len = strlen("test");
-    send(confd, "test", len, 0);
 	}
 	else {
 		/* You're the client */
@@ -169,14 +172,15 @@ int main(int argc, char* argv[]) {
 			servinfo = q;
 		}
 	  printf("Connected!\n");
-    recv(socketfd, &buf,  20, 0);
-    printf("%s\n", buf);
   }
 
 /*	
 	pthread_create(&input_thread, NULL, input, (void*) msg);
 	pthread_join(input_thread, NULL);
-*/	
+*/
+
+  close(socketfd);
+  close(confd);	
 	return 0;
 }
 

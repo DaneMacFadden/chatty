@@ -1,11 +1,6 @@
 /* 
  Dane MacFadden
- dgm288
- 11283087
-
  James Hom
- jhh318
- 11287431
 */
 
 #ifndef __LIST_H__

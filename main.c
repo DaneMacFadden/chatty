@@ -16,19 +16,21 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <list.h>
+/*#include "list.h"*/
 
 #define MAXBUFSIZE 30
 #define BACKLOG 10
 
-LIST *receivelist, *sendlist;
+/*LIST *receivelist, *sendlist;*/
 
 void *input(void *arg) {
-	while (1) {
-	/*
-	 * Accept input
-	 */
-	}	
+  char msg[512];
+
+  while (1) {
+    printf("Type a message: ");
+    scanf("%s", msg);
+    printf("%s", msg);
+  }	
 	return 0;
 }
 
@@ -71,12 +73,11 @@ int main(int argc, char* argv[]) {
 	local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
-
-  receivelist = ListCreate();
+  
+  /*receivelist = ListCreate();
   sendlist = ListCreate();  
-
+*/
 	if (atoi(local_port) < atoi(remote_port)) {
-		/* Congrats, you're the server */
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
@@ -87,7 +88,6 @@ int main(int argc, char* argv[]) {
 			exit(1);
 		}
 		
-		/* Create socket */
 		for (p = servinfo; p != NULL; p = p->ai_next) {
 			if ((socketfd = socket(p->ai_family, 
 					p->ai_socktype, 
@@ -95,13 +95,11 @@ int main(int argc, char* argv[]) {
 				perror("Server: socket");
 				continue;
 			}
-      /* Allow reuse of socket despite binding */
       if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &yes,
           sizeof(int)) == -1) {
         perror("setsockopt");
         exit(1);
       }
-			/* Bind */
 			if (bind(socketfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
 				close(socketfd);
 				perror("Server: bind");
@@ -137,8 +135,6 @@ int main(int argc, char* argv[]) {
     printf("Getting chatty with %s\n", s);
 	}
 	else {
-		/* You're the client */
-		/* Get remote info */
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
@@ -149,7 +145,6 @@ int main(int argc, char* argv[]) {
 			exit(1);
 		}
 		for (q = servinfo; q != NULL; q = q->ai_next) {
-			/* Create socket */
 			if ((socketfd = socket(q->ai_family,
 					q->ai_socktype,
 					q->ai_protocol)) == -1) {
@@ -177,14 +172,11 @@ int main(int argc, char* argv[]) {
 		}
 	  printf("Connected!\n");
   }
-
-/*	
 	pthread_create(&input_thread, NULL, input, (void*) msg);
 	pthread_join(input_thread, NULL);
-*/
 
   close(socketfd);
-  close(confd);	
+  close(confd);
 	return 0;
 }
 

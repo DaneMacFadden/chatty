@@ -21,6 +21,8 @@
 #define MAXBUFSIZE 30
 #define BACKLOG 10
 
+LIST *receivelist, *sendlist;
+
 void *input(void *arg) {
 	while (1) {
 	/*
@@ -59,7 +61,6 @@ int main(int argc, char* argv[]) {
 	char *remote_machine, *local_port, *remote_port;
 	int status, socketfd, confd, len;
 	int yes = 1;
-  char buf[10];
 
 	if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \ 
@@ -70,6 +71,9 @@ int main(int argc, char* argv[]) {
 	local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
+
+  receivelist = ListCreate();
+  sendlist = ListCreate();  
 
 	if (atoi(local_port) < atoi(remote_port)) {
 		/* Congrats, you're the server */

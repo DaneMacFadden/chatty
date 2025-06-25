@@ -26,5 +26,18 @@ listtest: listtest.o liblist.a
 listtest.o: listtest.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -I. -c -o listtest.o listtest.c
 
+liblist.a: list_adders.o list_removers.o list_movers.o
+	ar -rcs liblist.a list_adders.o list_removers.o list_movers.o
+
+list_adders.o: list_adders.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -I. -c -o list_adders.o list_adders.c
+
+list_movers.o: list_movers.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -I. -c -o list_movers.o list_movers.c
+
+list_removers.o: list_removers.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -I. -c -o list_removers.o list_removers.c
+ 
+
 clean:
 	rm -f *.o chatty liblist.a

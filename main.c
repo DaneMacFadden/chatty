@@ -22,6 +22,7 @@
 #define BACKLOG 10
 
 LIST *receivelist, *sendlist;
+pthread_mutex_t sendmut, receivemut;
 
 void *input(void *arg) {
   char msg[512];
@@ -29,7 +30,9 @@ void *input(void *arg) {
   while (1) {
     printf("Type a message: ");
     scanf("%s", msg);
-    printf("%s", msg);
+    pthread_mutex_lock(&sendmut);
+    ListAppend(sendlist, msg);
+    pthread_mutex_unlock(&sendmut);
   }	
 	return 0;
 }
@@ -52,7 +55,7 @@ void *get_in_addr(struct sockaddr *sa) {
 }
 
 int main(int argc, char* argv[]) {
-	pthread_t input_thread, send_thread, receive_thread;
+	pthread_t input_thread, send_thread, receive_thread, output_thread;
 	socklen_t sin_size;
 	struct addrinfo *p, *q;
 	struct addrinfo hints;
@@ -63,14 +66,17 @@ int main(int argc, char* argv[]) {
 	char *remote_machine, *local_port, *remote_port;
 	int status, socketfd, confd, len;
 	int yes = 1;
-
+  
 	if (argc != 4) {
-		printf("Wrong number of arguments. Usage: ./chatty <local port> \ 
-		<remote IP> <remote port>\n");
+		printf("Wrong number of arguments. Usage: ./chatty <local port> \
+<remote IP> <remote port>\n");
 		return -1;
 	}
-
-	local_port = argv[1];
+  
+  pthread_mutex_init(&sendmut, NULL);
+  pthread_mutex_init(&receivemut, NULL);
+	
+  local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
   

@@ -16,12 +16,12 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
-/*#include "list.h"*/
+#include <list.h>
 
 #define MAXBUFSIZE 30
 #define BACKLOG 10
 
-/*LIST *receivelist, *sendlist;*/
+LIST *receivelist, *sendlist;
 
 void *input(void *arg) {
   char msg[512];
@@ -74,10 +74,10 @@ int main(int argc, char* argv[]) {
 	remote_machine = argv[2];
 	remote_port = argv[3];
   
-  /*receivelist = ListCreate();
+  receivelist = ListCreate();
   sendlist = ListCreate();  
-*/
-	if (atoi(local_port) < atoi(remote_port)) {
+	
+  if (atoi(local_port) < atoi(remote_port)) {
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;

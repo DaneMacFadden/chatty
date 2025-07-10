@@ -23,6 +23,8 @@
 
 LIST *receivelist, *sendlist;
 pthread_mutex_t sendmut, receivemut;
+pthread_cond_t sendcv, receivecv;
+int sockfd, confd;
 
 void *input(void *arg) {
   char msg[30];
@@ -37,7 +39,13 @@ void *input(void *arg) {
 }
 
 void *sender(void *arg) {
-  	
+  char *msg;
+  while (1) {
+   pthread_mutex_lock(&sendmut);
+   msg = ListTrim(sendlist);
+   send(sockfd, msg, 30, NULL);
+   pthread_mutex_unlock(&sendmut);
+  }
   return 0;	
 }
 
@@ -63,7 +71,7 @@ int main(int argc, char* argv[]) {
 	char s[INET6_ADDRSTRLEN];	
 	char *msg;
 	char *remote_machine, *local_port, *remote_port;
-	int status, socketfd, confd, len;
+	int status, len;
 	int yes = 1;
   
 	if (argc != 4) {
@@ -72,9 +80,20 @@ int main(int argc, char* argv[]) {
 		return -1;
 	}
   
-  pthread_mutex_init(&sendmut, NULL);
-  pthread_mutex_init(&receivemut, NULL);
-	
+  if (pthread_mutex_init(&sendmut, NULL) != 0) {
+    printf("Error: send mutex init failed\n");
+    return -1;
+  }
+	if (pthread_mutex_init(&receivemut, NULL) != 0) {
+    printf("Error: receive mutex init failed\n");
+    return -1;
+  }
+  if (pthread_cond_init(&sendcv, NULL) != 0) {
+    printf("Error: send CV init failed\n");
+    return -1;
+  }
+
+
   local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];

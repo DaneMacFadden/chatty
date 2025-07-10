@@ -43,13 +43,20 @@ void *sender(void *arg) {
   while (1) {
    pthread_mutex_lock(&sendmut);
    msg = ListTrim(sendlist);
-   send(sockfd, msg, 30, NULL);
+   send(sockfd, msg, 30, 0);
    pthread_mutex_unlock(&sendmut);
   }
   return 0;	
 }
 
 void *receiver(void *arg) {
+  char *msg;
+  while (1) {
+    recv(sockfd, msg, 30, 0);
+    pthread_mutex_lock(&receivemut);
+    ListAppend(receivelist, msg);
+    pthread_mutex_unlock(&receivemut);
+  }
   return 0;
 }
 
@@ -113,19 +120,19 @@ int main(int argc, char* argv[]) {
 		}
 		
 		for (p = servinfo; p != NULL; p = p->ai_next) {
-			if ((socketfd = socket(p->ai_family, 
+			if ((sockfd = socket(p->ai_family, 
 					p->ai_socktype, 
 					p->ai_protocol)) == -1) {
 				perror("Server: socket");
 				continue;
 			}
-      if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+      if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
           sizeof(int)) == -1) {
         perror("setsockopt");
         exit(1);
       }
-			if (bind(socketfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
-				close(socketfd);
+			if (bind(sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
+				close(sockfd);
 				perror("Server: bind");
 				continue;
 			}	
@@ -141,14 +148,14 @@ int main(int argc, char* argv[]) {
 		}
 		
 		freeaddrinfo(servinfo);
-		if (listen(socketfd, BACKLOG) == -1) {
+		if (listen(sockfd, BACKLOG) == -1) {
 			perror("listen");
 			exit(1);
 		}
 		
     sin_size = sizeof their_addr;
     printf("Waiting for connection...\n");
-    confd = accept(socketfd, (struct sockaddr *)&their_addr, &sin_size);
+    confd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
     if (confd == -1) {
       perror("accept");
     }
@@ -169,7 +176,7 @@ int main(int argc, char* argv[]) {
 			exit(1);
 		}
 		for (q = servinfo; q != NULL; q = q->ai_next) {
-			if ((socketfd = socket(q->ai_family,
+			if ((sockfd = socket(q->ai_family,
 					q->ai_socktype,
 					q->ai_protocol)) == -1) {
 				perror("Client: socket");
@@ -179,9 +186,9 @@ int main(int argc, char* argv[]) {
 				  s, sizeof s);
 			printf("Client: attempting connection to %s\n", s);
 
-			if (connect(socketfd, q->ai_addr, q->ai_addrlen) == -1) {
+			if (connect(sockfd, q->ai_addr, q->ai_addrlen) == -1) {
 			  perror("Client: connect");
-			  close(socketfd);
+			  close(sockfd);
 			  continue;
       			}
 			break;
@@ -199,7 +206,7 @@ int main(int argc, char* argv[]) {
 	pthread_create(&input_thread, NULL, input, (void*) msg);
 	pthread_join(input_thread, NULL);
   
-  close(socketfd);
+  close(sockfd);
   close(confd);
 	return 0;
 }

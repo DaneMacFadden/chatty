@@ -1,21 +1,18 @@
 #include <list.h>
 #include <stdlib.h>
-#include <stdio.h>
-
-LIST *ListCreate(void) {
-  LIST *new_node_list;  
+  LIST *new_list;  
   
-  new_node_list = malloc(sizeof(LIST));
-  if (!new_node_list) {
+  new_list = malloc(sizeof(LIST));
+  if (!new_list) {
     return NULL;
   }
   
-  new_node_list->size = 0;
-  new_node_list->current = 0;
-  new_node_list->head = 0;
-  new_node_list->tail = 0;
+  new_list->size = 0;
+  new_list->current = 0;
+  new_list->head = 0;
+  new_list->tail = 0;
 
-  return new_node_list;
+  return new_list;
 }
 
 int ListAdd(LIST *list, void *item) {

@@ -3,19 +3,19 @@
 #include <stdio.h>
 
 LIST *ListCreate(void) {
-  LIST *new_list;  
+  LIST *new_node_list;  
   
-  new_list = malloc(sizeof(LIST));
-  if (!new_list) {
+  new_node_list = malloc(sizeof(LIST));
+  if (!new_node_list) {
     return NULL;
   }
   
-  new_list->size = 0;
-  new_list->current = 0;
-  new_list->head = 0;
-  new_list->tail = 0;
+  new_node_list->size = 0;
+  new_node_list->current = 0;
+  new_node_list->head = 0;
+  new_node_list->tail = 0;
 
-  return new_list;
+  return new_node_list;
 }
 
 int ListAdd(LIST *list, void *item) {
@@ -24,28 +24,28 @@ int ListAdd(LIST *list, void *item) {
    * 2. Insert when cursor is at the tail (& list not empty)
    * 3. Insert when cursor is anywhere but the tail (& list not empty)
    */
-  NODE *new = malloc(sizeof(NODE));
-  if (new == NULL || (list->current == NULL && list->size != 0)) {
+  NODE *new_node = malloc(sizeof(NODE));
+  if (new_node == NULL || (list->current == NULL && list->size != 0)) {
     return -1;
   }
-  new->data = item;
+  new_node->data = item;
   if (list->size == 0) {
-    list->current = new;
-    list->head = new;
-    list->tail = new;
+    list->current = new_node;
+    list->head = new_node;
+    list->tail = new_node;
   }
   else if (list->current == list->tail) {
-    new->previous = list->tail;
-    list->tail->next = new;
-    list->tail = new;
-    list->current = new;
+    new_node->previous = list->tail;
+    list->tail->next = new_node;
+    list->tail = new_node;
+    list->current = new_node;
   }
   else if (list->current != list->tail && list->size > 0) {
-    new->next = list->current->next;
-    new->previous = list->current;
-    list->current->next->previous = new;
-    list->current->next = new;
-    list->current = new;
+    new_node->next = list->current->next;
+    new_node->previous = list->current;
+    list->current->next->previous = new_node;
+    list->current->next = new_node;
+    list->current = new_node;
   }
   else {
     return -1;
@@ -61,29 +61,29 @@ int ListInsert(LIST *list, void *item) {
    * 2. Insert when cursor is at the head (& list not empty)
    * 3. Insert when cursor is anywhere but the head (& list not empty)
    */
-  NODE *new = malloc(sizeof(NODE));
-  if (new == NULL || (list->current == NULL && list->size != 0)) {
+  NODE *new_node = malloc(sizeof(NODE));
+  if (new_node == NULL || (list->current == NULL && list->size != 0)) {
     return -1;
   }
 
-  new->data = item;
+  new_node->data = item;
   if (list->size == 0) {
-    list->current = new;
-    list->head = new;
-    list->tail = new;
+    list->current = new_node;
+    list->head = new_node;
+    list->tail = new_node;
   }
   else if (list->current == list->head) {
-    new->next = list->head;
-    list->head->previous = new;
-    list->head = new;
-    list->current = new;
+    new_node->next = list->head;
+    list->head->previous = new_node;
+    list->head = new_node;
+    list->current = new_node;
   }
   else if (list->current != list->head && list->size > 0) {
-    new->next = list->current;
-    new->previous = list->current->previous;
-    list->current->previous->next = new;
-    list->current->previous = new;
-    list->current = new;    
+    new_node->next = list->current;
+    new_node->previous = list->current->previous;
+    list->current->previous->next = new_node;
+    list->current->previous = new_node;
+    list->current = new_node;    
   }
   else {
     return -1;
@@ -94,28 +94,40 @@ int ListInsert(LIST *list, void *item) {
 }
 
 int ListPrepend(LIST *list, void *item) {
-  NODE *new = malloc(sizeof(NODE));
-  if (new == NULL) {
+  NODE *new_node = malloc(sizeof(NODE));
+  if (new_node == NULL) {
     return -1;
   }
-  new->data = item;
-  new->next = list->head;
-  list->head->previous = new;
-  list->head = new;
+  new_node->data = item;
+  if (list->size == 0) {
+    list->current = new_node;
+    list->head = new_node;
+    list->tail = new_node;
+  }
+  new_node->next = list->head;
+  list->head->previous = new_node;
+  list->head = new_node;
   list->size++;
   return 0;
 
 }
 
 int ListAppend(LIST *list, void *item) {
-  NODE *new = malloc(sizeof(NODE));
-  if (new == NULL) {
+  NODE *add = malloc(sizeof(NODE));
+  if (add == NULL) {
     return -1;
   }
-  new->data = item;
-  new->previous = list->tail;
-  list->tail->next = new;
-  list->tail = new;
+  add->data = item;
+  if (list->size == 0) {
+    list->current = add;
+    list->head = add;
+    list->tail = add;
+  }
+  else {
+    add->previous = list->tail;
+    list->tail->next = add;
+    list->tail = add;
+  }
   list->size++;
   return 0;
 

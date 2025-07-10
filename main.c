@@ -25,13 +25,12 @@ LIST *receivelist, *sendlist;
 pthread_mutex_t sendmut, receivemut;
 
 void *input(void *arg) {
-  char msg[512];
-
+  char msg[30];
   while (1) {
     printf("Type a message: ");
-    scanf("%s", msg);
+    fgets(msg, sizeof(msg), stdin); 
     pthread_mutex_lock(&sendmut);
-    ListAppend(sendlist, msg);
+    ListAppend(sendlist, &msg);
     pthread_mutex_unlock(&sendmut);
   }	
 	return 0;
@@ -180,7 +179,7 @@ int main(int argc, char* argv[]) {
   }
 	pthread_create(&input_thread, NULL, input, (void*) msg);
 	pthread_join(input_thread, NULL);
-
+  
   close(socketfd);
   close(confd);
 	return 0;

@@ -23,7 +23,6 @@
 
 LIST *receivelist, *sendlist;
 pthread_mutex_t sendmut, receivemut;
-pthread_cond_t sendcv, receivecv;
 int sockfd, confd;
 
 void *input(void *arg) {
@@ -50,7 +49,7 @@ void *sender(void *arg) {
 }
 
 void *receiver(void *arg) {
-  char *msg;
+  char msg[30];
   while (1) {
     recv(sockfd, msg, 30, 0);
     pthread_mutex_lock(&receivemut);

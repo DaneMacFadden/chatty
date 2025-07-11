@@ -1,5 +1,6 @@
 #include <list.h>
 #include <stdlib.h>
+LIST *ListCreate(void) {  
   LIST *new_list;  
   
   new_list = malloc(sizeof(LIST));

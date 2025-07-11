@@ -59,6 +59,20 @@ void *receiver(void *arg) {
   return 0;
 }
 
+void *output(void *arg) {
+  char msg[30];
+  while (1) {
+    pthread_mutex_lock(&receivemut);
+    ListFirst(receivelist);
+    strcpy(msg, ListCurr(receivelist));
+    ListRemove(receivelist);
+    pthread_mutex_unlock(&receivemut);
+    printf("%s\n", msg);
+  }
+
+  return 0;
+}
+
 void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
@@ -94,11 +108,6 @@ int main(int argc, char* argv[]) {
     printf("Error: receive mutex init failed\n");
     return -1;
   }
-  if (pthread_cond_init(&sendcv, NULL) != 0) {
-    printf("Error: send CV init failed\n");
-    return -1;
-  }
-
 
   local_port = argv[1];
 	remote_machine = argv[2];

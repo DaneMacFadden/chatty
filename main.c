@@ -211,8 +211,14 @@ int main(int argc, char* argv[]) {
 		}
 	  printf("Connected!\n");
   }
-	pthread_create(&input_thread, NULL, input, (void*) msg);
-	pthread_join(input_thread, NULL);
+	pthread_create(&input_thread, NULL, input, NULL);
+	pthread_create(&send_thread, NULL, sender, NULL);
+	pthread_create(&receive_thread, NULL, receiver,  NULL);
+	pthread_create(&output_thread, NULL, output, NULL);
+  pthread_join(input_thread, NULL);
+  pthread_join(send_thread, NULL);
+  pthread_join(receive_thread, NULL);
+  pthread_join(output_thread, NULL);
   
   close(sockfd);
   close(confd);

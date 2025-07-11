@@ -53,11 +53,12 @@ void ListFree(LIST *list) {
 
 void *ListTrim(LIST *list) {
   NODE *tempnode = list->tail->previous;
+  void *nodedata = list->tail->data;
   list->tail->previous = NULL;
   free(list->tail);
   list->tail = tempnode;
   list->size--;
-  return 0;
+  return nodedata;
 }
 
 void *ListSearch(LIST *list, int (*comparator)(void *, void*), 

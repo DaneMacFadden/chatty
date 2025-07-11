@@ -41,8 +41,14 @@ void *sender(void *arg) {
   char *msg;
   while (1) {
    pthread_mutex_lock(&sendmut);
-   msg = ListTrim(sendlist);
-   send(sockfd, msg, 30, 0);
+   if (ListCount(sendlist) != 0) {
+     ListFirst(sendlist);
+     strcpy(msg, ListCurr(sendlist));
+     ListRemove(sendlist);
+   }
+   else {
+     continue;
+   }
    pthread_mutex_unlock(&sendmut);
   }
   return 0;	
@@ -89,9 +95,8 @@ int main(int argc, char* argv[]) {
 	struct addrinfo *servinfo; 
 	struct sockaddr_storage their_addr;
 	char s[INET6_ADDRSTRLEN];	
-	char *msg;
 	char *remote_machine, *local_port, *remote_port;
-	int status, len;
+	int status;
 	int yes = 1;
   
 	if (argc != 4) {

@@ -79,7 +79,7 @@ void *output(void *arg) {
       ListFirst(receivelist);
       strcpy(msg, ListCurr(receivelist));
       ListRemove(receivelist);
-      printf("%s\n", msg); 
+      printf("%s\n", (char*)msg); 
     }
     pthread_mutex_unlock(&receivemut);
   }

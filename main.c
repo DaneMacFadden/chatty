@@ -72,12 +72,12 @@ void *receiver(void *arg) {
 }
 
 void *output(void *arg) {
-  char msg[30];
+  char *msg;
   while (1) {
     pthread_mutex_lock(&receivemut);
     if (ListCount(receivelist) != 0) {
       ListFirst(receivelist);
-      strcpy(msg, ListCurr(receivelist));
+      msg = ListCurr(receivelist);
       ListRemove(receivelist);
       printf("%s\n", (char*)msg); 
     }

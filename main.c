@@ -27,11 +27,13 @@ int sockfd, confd;
 
 void *input(void *arg) {
   char msg[30];
+  char *copy = malloc(31);
   while (1) {
     printf("Type a message: ");
-    fgets(msg, sizeof(msg), stdin); 
+    fgets(msg, sizeof(msg), stdin);
+    strcpy(copy, msg);
     pthread_mutex_lock(&sendmut);
-    ListAppend(sendlist, &msg);
+    ListAppend(sendlist, copy);
     pthread_mutex_unlock(&sendmut);
   }	
 	return 0;
@@ -57,11 +59,14 @@ void *sender(void *arg) {
 
 void *receiver(void *arg) {
   char msg[30];
+  char *copy = malloc(31);
   while (1) {
     recv(sockfd, msg, 30, 0);
-    pthread_mutex_lock(&receivemut);
-    ListAppend(receivelist, msg);
-    pthread_mutex_unlock(&receivemut);
+    if (msg[0] != '\n' && msg[0] != '\0') {
+      pthread_mutex_lock(&receivemut);
+      ListAppend(receivelist, msg);
+      pthread_mutex_unlock(&receivemut);
+    }
   }
   return 0;
 }

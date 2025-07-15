@@ -47,6 +47,7 @@ void *sender(void *arg) {
      ListRemove(sendlist);
    }
    else {
+     pthread_mutex_unlock(&sendmut);
      continue;
    }
    pthread_mutex_unlock(&sendmut);

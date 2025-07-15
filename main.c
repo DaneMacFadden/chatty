@@ -38,7 +38,7 @@ void *input(void *arg) {
 }
 
 void *sender(void *arg) {
-  char *msg;
+  char msg[30];
   while (1) {
    pthread_mutex_lock(&sendmut);
    if (ListCount(sendlist) != 0) {
@@ -74,11 +74,9 @@ void *output(void *arg) {
       ListFirst(receivelist);
       strcpy(msg, ListCurr(receivelist));
       ListRemove(receivelist);
+      printf("%s\n", msg); 
     }
     pthread_mutex_unlock(&receivemut);
-    if (ListCount(receivelist) != 0) {
-      printf("%s\n", msg);
-    }
   }
 
   return 0;

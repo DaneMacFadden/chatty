@@ -69,11 +69,15 @@ void *output(void *arg) {
   char msg[30];
   while (1) {
     pthread_mutex_lock(&receivemut);
-    ListFirst(receivelist);
-    strcpy(msg, ListCurr(receivelist));
-    ListRemove(receivelist);
+    if (ListCount(receivelist) != 0) {
+      ListFirst(receivelist);
+      strcpy(msg, ListCurr(receivelist));
+      ListRemove(receivelist);
+    }
     pthread_mutex_unlock(&receivemut);
-    printf("%s\n", msg);
+    if (ListCount(receivelist) != 0) {
+      printf("%s\n", msg);
+    }
   }
 
   return 0;

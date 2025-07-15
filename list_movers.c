@@ -6,13 +6,19 @@ int ListCount(LIST *list) {
 }
 
 void *ListFirst(LIST *list) {
-  list->current = list->head;
-  return list->current->data;
-}
+  if (list->size != 0) {
+    list->current = list->head;
+    return list->current->data;
+  }
+  return NULL;
+} 
 
 void *ListLast(LIST *list) {
-  list->current = list->tail;
-  return list->current->data;
+  if (list->size != 0) {
+    list->current = list->tail;
+    return list->current->data;
+  }
+  return NULL;
 }
 
 void *ListNext(LIST *list) {

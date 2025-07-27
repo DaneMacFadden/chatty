@@ -228,7 +228,7 @@ int main(int argc, char* argv[]) {
 		else {
 			servinfo = q;
 		}
-    recv(sockfd, buf, 4, 0); 
+    recv(sockfd, buf, 20, 0); 
     printf("%s\n", buf);
   }
   /*

@@ -26,11 +26,13 @@ pthread_mutex_t sendmut, receivemut;
 int sockfd, confd;
 
 void *input(void *arg) {
-  char msg[30];
-  char *copy = malloc(31);
+  char *msg;
+  char *copy;
   while (1) {
+    msg = malloc(30);
     printf("Type a message: ");
     fgets(msg, sizeof(msg), stdin);
+    copy = malloc(30);
     strcpy(copy, msg);
     pthread_mutex_lock(&sendmut);
     ListAppend(sendlist, copy);
@@ -40,12 +42,14 @@ void *input(void *arg) {
 }
 
 void *sender(void *arg) {
-  char msg[30];
+  char *msg;
   while (1) {
+   msg = malloc(30);
    pthread_mutex_lock(&sendmut);
    if (ListCount(sendlist) != 0) {
      ListFirst(sendlist);
      strcpy(msg, ListCurr(sendlist));
+     send(confd, &msg, 30, 0);
      ListRemove(sendlist);
    }
    else {
@@ -106,7 +110,8 @@ int main(int argc, char* argv[]) {
 	char *remote_machine, *local_port, *remote_port;
 	int status;
 	int yes = 1;
-  
+  char buf[20];
+
 	if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
@@ -185,7 +190,8 @@ int main(int argc, char* argv[]) {
             s,
         sizeof s);
     printf("Getting chatty with %s\n", s);
-	}
+    send(confd, "test", 4, 0); 
+  }
 	else {
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
@@ -222,9 +228,11 @@ int main(int argc, char* argv[]) {
 		else {
 			servinfo = q;
 		}
-	  printf("Connected!\n");
+    recv(sockfd, buf, 4, 0); 
+    printf("%s\n", buf);
   }
-	pthread_create(&input_thread, NULL, input, NULL);
+  /*
+  pthread_create(&input_thread, NULL, input, NULL);
 	pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);
 	pthread_create(&output_thread, NULL, output, NULL);
@@ -232,7 +240,9 @@ int main(int argc, char* argv[]) {
   pthread_join(send_thread, NULL);
   pthread_join(receive_thread, NULL);
   pthread_join(output_thread, NULL);
+ */
   
+
   close(sockfd);
   close(confd);
 	return 0;

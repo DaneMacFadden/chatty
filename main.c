@@ -86,36 +86,21 @@ void *sender(void *arg) {
 void *receiver(void *arg) {
   char buf[128];
   int bytes;
-  if (client) {
-    while (1) {
-      pthread_mutex_lock(&receivemut);
-      memset(buf, 0, 128);
-      bytes = recv(newfd, buf, 128, 0);
-      pthread_mutex_unlock(&receivemut);
-      
-      if (bytes != -1) {
-        printf("Received: %s\n", buf);
-      }
-      else {
-        perror("recv");
-      }
+  while (1) {
+    pthread_mutex_lock(&receivemut);
+    memset(buf, 0, 128);
+    bytes = recv(confd, buf, 128, 0);
+    pthread_mutex_unlock(&receivemut);
+    
+    if (bytes != -1) {
+      printf("Received: %s\n", buf);
+    }
+    else {
+      perror("recv");
+      return -1;
     }
   }
-  else {
-    while (1) {
-      pthread_mutex_lock(&receivemut);
-      memset(buf, 0, 128);
-      bytes = recv(sockfd, buf, 128, 0);
-      pthread_mutex_unlock(&receivemut);
-      
-      if (bytes != -1) {
-        printf("Received: %s\n", buf);
-      }
-      else {
-        perror("recv");
-      }
-    }
-  }
+
   return 0;
 }
 
@@ -230,7 +215,7 @@ int main(int argc, char* argv[]) {
 			exit(1);
 		}
 		for (q = servinfo; q != NULL; q = q->ai_next) {
-			if ((newfd = socket(q->ai_family,
+			if ((confd = socket(q->ai_family,
 					q->ai_socktype,
 					q->ai_protocol)) == -1) {
 				perror("Client: socket");
@@ -240,7 +225,7 @@ int main(int argc, char* argv[]) {
 				  s, sizeof s);
 			printf("Connecting to %s\n", s);
 
-			if (connect(newfd, q->ai_addr, q->ai_addrlen) == -1) {
+			if (connect(confd, q->ai_addr, q->ai_addrlen) == -1) {
 			  perror("Client: connect");
 			  close(sockfd);
 			  continue;
@@ -252,9 +237,8 @@ int main(int argc, char* argv[]) {
 			fprintf(stderr, "Client: failed to create socket\n");
 			return 2;
 		}
-		else {
-			servinfo = q;
-		}
+    servinfo = q;
+
   }
 	pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);

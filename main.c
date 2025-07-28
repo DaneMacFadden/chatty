@@ -72,6 +72,7 @@ void *sender(void *arg) {
 void *receiver(void *arg) {
   char buf[128];
   int bytes;
+  char error[] = "pthread exit";
   while (1) {
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
@@ -81,7 +82,7 @@ void *receiver(void *arg) {
     }
     else {
       perror("recv");
-      return -1;
+      pthread_exit(&error);
     }
   }
 

@@ -60,25 +60,11 @@ void *output(void *arg) {
 
 void *sender(void *arg) {
   char msg[128];
-  if (client) {
-    while (1) {
-      pthread_mutex_lock(&sendmut);
-      memset(msg, 0, 128);
-      printf("Type a message: ");
-      fgets(msg, sizeof(msg), stdin);
-      send(newfd, msg, sizeof(msg), 0);
-      pthread_mutex_unlock(&sendmut);
-    }
-  }
-  else {
-    while (1) {
-      pthread_mutex_lock(&sendmut);
-      memset(msg, 0, 128);
-      printf("Type a message: ");
-      fgets(msg, sizeof(msg), stdin);
-      send(confd, msg, sizeof(msg), 0);
-      pthread_mutex_unlock(&sendmut);
-    }
+  while (1) {
+    memset(msg, 0, 128);
+    printf("Type a message: ");
+    fgets(msg, sizeof(msg), stdin);
+    send(confd, msg, sizeof(msg), 0);
   }
   return 0;	
 }
@@ -87,10 +73,8 @@ void *receiver(void *arg) {
   char buf[128];
   int bytes;
   while (1) {
-    pthread_mutex_lock(&receivemut);
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
-    pthread_mutex_unlock(&receivemut);
     
     if (bytes != -1) {
       printf("Received: %s\n", buf);

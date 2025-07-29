@@ -23,7 +23,7 @@
 
 LIST *receivelist, *sendlist;
 pthread_mutex_t sendmut, receivemut;
-int sockfd, confd, newfd, client;
+int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
 /*
 void *input(void *arg) {
@@ -60,11 +60,18 @@ void *output(void *arg) {
 
 void *sender(void *arg) {
   char msg[128];
+  int bytes;
+  char error[] = "pthread sender exit";
+  
   while (1) {
     memset(msg, 0, 128);
     printf("Type a message: ");
     fgets(msg, sizeof(msg), stdin);
-    send(confd, msg, sizeof(msg), 0);
+    bytes = send(confd, msg, sizeof(msg), 0);
+    if (bytes == -1) {
+      perror("send");
+      pthread_exit(&error);
+    }
   }
   return 0;	
 }
@@ -72,13 +79,16 @@ void *sender(void *arg) {
 void *receiver(void *arg) {
   char buf[128];
   int bytes;
-  char error[] = "pthread exit";
+  char error[] = "pthread receiver exit";
   while (1) {
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
     
     if (bytes != -1) {
-      printf("Received: %s\n", buf);
+      printf("\nReceived: %s\n", buf);
+    }
+    else if (bytes == 0) {
+      pthread_exit("connection closed");
     }
     else {
       perror("recv");

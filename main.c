@@ -17,74 +17,88 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <list.h>
+#include <ncurses.h>
 
 #define MAXBUFSIZE 30
 #define BACKLOG 10
 
 LIST *receivelist, *sendlist;
 pthread_mutex_t sendmut, receivemut;
-int sockfd, confd;
-
+int sockfd, confd, client;
+char *remote_machine, *local_port, *remote_port;
+int row, col;
+/*
 void *input(void *arg) {
-  char msg[30];
-  char *copy = malloc(31);
+  char msg[128];
   while (1) {
+    memset(msg, 0, 128);
     printf("Type a message: ");
     fgets(msg, sizeof(msg), stdin);
-    strcpy(copy, msg);
     pthread_mutex_lock(&sendmut);
-    ListAppend(sendlist, copy);
+    ListAppend(sendlist, msg);
     pthread_mutex_unlock(&sendmut);
   }	
 	return 0;
 }
+void *output(void *arg) {
+  char msg[128];
+  while (1) {
+    memset(msg, 0, 128);
+    pthread_mutex_lock(&receivemut);
+    if (ListCount(receivelist) != 0) {
+      ListFirst(receivelist);
+      strcpy(msg, ListCurr(receivelist));
+      ListRemove(receivelist);
+      printf("%s\n", msg); 
+    }
+    pthread_mutex_unlock(&receivemut);
+  }
+
+  return 0;
+}
+
+
+*/
 
 void *sender(void *arg) {
-  char msg[30];
+  char msg[128];
+  int bytes;
+  char error[] = "pthread sender exit";
+  
   while (1) {
-   pthread_mutex_lock(&sendmut);
-   if (ListCount(sendlist) != 0) {
-     printf("The size of sendlist is %d\n", sendlist->size);
-     ListFirst(sendlist);
-     strcpy(msg, ListCurr(sendlist));
-     send(sockfd, "test", 4, 0);
-     ListRemove(sendlist); 
-   }
-   else {
-     pthread_mutex_unlock(&sendmut);
-     continue;
-   }
     pthread_mutex_unlock(&sendmut);
+    memset(msg, 0, 128);
+    mvprintw(row - 2, 0, "Type a message: ");
+    refresh();
+    getstr(msg); 
+    bytes = send(confd, msg, sizeof(msg), 0);
+    if (bytes == -1) {
+      perror("send");
+      pthread_exit(&error);
+    }
   }
   return 0;	
 }
 
 void *receiver(void *arg) {
-  char msg[30];
-  char *copy = malloc(31);
+  char buf[128];
+  int bytes;
+  char error[] = "pthread receiver exit";
   while (1) {
-    recv(sockfd, msg, 4, 0);
-    printf("Message: \"%s\"\n", msg);
-    if (msg[0] != '\n' && msg[0] != '\0') {
-      pthread_mutex_lock(&receivemut);
-      ListAppend(receivelist, msg);
-      pthread_mutex_unlock(&receivemut);
+    memset(buf, 0, 128);
+    bytes = recv(confd, buf, 128, 0);
+    
+    if (bytes != -1) {
+      mvprintw(row - 3, 10, ("Message: %s", buf));
+      refresh();
     }
-  }
-  return 0;
-}
-
-void *output(void *arg) {
-  char *msg;
-  while (1) {
-    pthread_mutex_lock(&receivemut);
-    if (ListCount(receivelist) != 0) {
-      ListFirst(receivelist);
-      msg = ListCurr(receivelist);
-      ListRemove(receivelist);
-      printf("Message: %s\n", (char*)msg); 
+    else if (bytes == 0) {
+      pthread_exit("connection closed");
     }
-    pthread_mutex_unlock(&receivemut);
+    else {
+      perror("recv");
+      pthread_exit(&error);
+    }
   }
 
   return 0;
@@ -106,10 +120,8 @@ int main(int argc, char* argv[]) {
 	struct addrinfo *servinfo; 
 	struct sockaddr_storage their_addr;
 	char s[INET6_ADDRSTRLEN];	
-	char *remote_machine, *local_port, *remote_port;
 	int status;
 	int yes = 1;
-  char buf[4] = "test";
 	if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
@@ -133,6 +145,7 @@ int main(int argc, char* argv[]) {
   sendlist = ListCreate();  
 	
   if (atoi(local_port) < atoi(remote_port)) {
+    client = 0;
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
@@ -188,8 +201,9 @@ int main(int argc, char* argv[]) {
             s,
         sizeof s);
     printf("Getting chatty with %s\n", s);
-	}
+  }
 	else {
+    client = 1;
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
@@ -200,7 +214,7 @@ int main(int argc, char* argv[]) {
 			exit(1);
 		}
 		for (q = servinfo; q != NULL; q = q->ai_next) {
-			if ((sockfd = socket(q->ai_family,
+			if ((confd = socket(q->ai_family,
 					q->ai_socktype,
 					q->ai_protocol)) == -1) {
 				perror("Client: socket");
@@ -208,9 +222,9 @@ int main(int argc, char* argv[]) {
 			}
 		      	inet_ntop(q->ai_family, get_in_addr((struct sockaddr *)q->ai_addr), 
 				  s, sizeof s);
-			printf("Client: attempting connection to %s\n", s);
+			printf("Connecting to %s\n", s);
 
-			if (connect(sockfd, q->ai_addr, q->ai_addrlen) == -1) {
+			if (connect(confd, q->ai_addr, q->ai_addrlen) == -1) {
 			  perror("Client: connect");
 			  close(sockfd);
 			  continue;
@@ -222,25 +236,20 @@ int main(int argc, char* argv[]) {
 			fprintf(stderr, "Client: failed to create socket\n");
 			return 2;
 		}
-		else {
-			servinfo = q;
-		}
-	  printf("Connected!\n");
+    servinfo = q;
+
   }
-/*	pthread_create(&input_thread, NULL, input, NULL);
+  
+  initscr();
+  getmaxyx(stdscr, row, col);
 	pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);
-	pthread_create(&output_thread, NULL, output, NULL);
-  pthread_join(input_thread, NULL);
+  
   pthread_join(send_thread, NULL);
   pthread_join(receive_thread, NULL);
-  pthread_join(output_thread, NULL);
-  */
-
-  send(sockfd, buf, 4, 0);
-  printf("Sent\n");
   close(sockfd);
   close(confd);
+  endwin();
 	return 0;
 }
 

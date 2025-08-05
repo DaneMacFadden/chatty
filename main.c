@@ -88,7 +88,8 @@ void *receiver(void *arg) {
     bytes = recv(confd, buf, 128, 0);
     
     if (bytes != -1) {
-      printf("\nReceived: %s\n", buf);
+      mvprintw(row - 3, 10, ("Message: %s", buf));
+      refresh();
     }
     else if (bytes == 0) {
       pthread_exit("connection closed");

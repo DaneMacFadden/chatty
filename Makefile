@@ -3,7 +3,7 @@ CFLAGS = -g
 CPPFLAGS = -Wall -Wextra -pedantic -std=gnu90
 
 chatty: main.o liblist.a
-	$(CC) $(CFLAGS) -L. -o chatty main.o -llist -lpthread
+	$(CC) $(CFLAGS) -L. -o chatty main.o -llist -lpthread -lncurses
 
 main.o: main.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -I. -c -o main.o main.c

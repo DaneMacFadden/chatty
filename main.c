@@ -44,15 +44,17 @@ void *sender(void *arg) {
   while (1) {
    pthread_mutex_lock(&sendmut);
    if (ListCount(sendlist) != 0) {
+     printf("The size of sendlist is %d\n", sendlist->size);
      ListFirst(sendlist);
      strcpy(msg, ListCurr(sendlist));
-     ListRemove(sendlist);
+     send(sockfd, "test", 4, 0);
+     ListRemove(sendlist); 
    }
    else {
      pthread_mutex_unlock(&sendmut);
      continue;
    }
-   pthread_mutex_unlock(&sendmut);
+    pthread_mutex_unlock(&sendmut);
   }
   return 0;	
 }
@@ -61,7 +63,8 @@ void *receiver(void *arg) {
   char msg[30];
   char *copy = malloc(31);
   while (1) {
-    recv(sockfd, msg, 30, 0);
+    recv(sockfd, msg, 4, 0);
+    printf("Message: \"%s\"\n", msg);
     if (msg[0] != '\n' && msg[0] != '\0') {
       pthread_mutex_lock(&receivemut);
       ListAppend(receivelist, msg);
@@ -79,7 +82,7 @@ void *output(void *arg) {
       ListFirst(receivelist);
       msg = ListCurr(receivelist);
       ListRemove(receivelist);
-      printf("%s\n", (char*)msg); 
+      printf("Message: %s\n", (char*)msg); 
     }
     pthread_mutex_unlock(&receivemut);
   }
@@ -106,7 +109,7 @@ int main(int argc, char* argv[]) {
 	char *remote_machine, *local_port, *remote_port;
 	int status;
 	int yes = 1;
-  
+  char buf[4] = "test";
 	if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
@@ -224,7 +227,7 @@ int main(int argc, char* argv[]) {
 		}
 	  printf("Connected!\n");
   }
-	pthread_create(&input_thread, NULL, input, NULL);
+/*	pthread_create(&input_thread, NULL, input, NULL);
 	pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);
 	pthread_create(&output_thread, NULL, output, NULL);
@@ -232,7 +235,10 @@ int main(int argc, char* argv[]) {
   pthread_join(send_thread, NULL);
   pthread_join(receive_thread, NULL);
   pthread_join(output_thread, NULL);
-  
+  */
+
+  send(sockfd, buf, 4, 0);
+  printf("Sent\n");
   close(sockfd);
   close(confd);
 	return 0;

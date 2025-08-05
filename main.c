@@ -17,6 +17,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <list.h>
+#include <ncurses.h>
 
 #define MAXBUFSIZE 30
 #define BACKLOG 10
@@ -25,6 +26,7 @@ LIST *receivelist, *sendlist;
 pthread_mutex_t sendmut, receivemut;
 int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
+int row, col;
 /*
 void *input(void *arg) {
   char msg[128];
@@ -65,8 +67,9 @@ void *sender(void *arg) {
   
   while (1) {
     memset(msg, 0, 128);
-    printf("Type a message: ");
-    fgets(msg, sizeof(msg), stdin);
+    mvprintw(row - 2, 0, "Type a message: ");
+    refresh();
+    getstr(msg); 
     bytes = send(confd, msg, sizeof(msg), 0);
     if (bytes == -1) {
       perror("send");
@@ -235,6 +238,8 @@ int main(int argc, char* argv[]) {
     servinfo = q;
 
   }
+  initscr();
+  getmaxyx(stdscr, row, col);
 	pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);
   /*pthread_create(&input_thread, NULL, input, NULL);
@@ -249,6 +254,7 @@ int main(int argc, char* argv[]) {
   
   close(sockfd);
   close(confd);
+  endwin();
 	return 0;
 }
 

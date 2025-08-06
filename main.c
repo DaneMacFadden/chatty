@@ -27,6 +27,7 @@ pthread_mutex_t sendmut, receivemut;
 int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
 int row, col;
+char s[INET6_ADDRSTRLEN];	
 
 /*
 void *input(void *arg) {
@@ -91,9 +92,10 @@ void *receiver(void *arg) {
     if (bytes != -1) {
       move(0, 0);
       deleteln();
-      refresh();
-      mvprintw(row - 2, 0, "Message: %s", buf);
-      move(row - 1, 16); 
+      move(row - 2, 0);
+      deleteln();
+      mvprintw(row - 2, 0, "%s: %s", s, buf);
+      mvprintw(row - 1, 0, "Type a message: ");
       refresh();
     }
     else if (bytes == 0) {
@@ -123,21 +125,20 @@ int main(int argc, char* argv[]) {
 	struct addrinfo hints;
 	struct addrinfo *servinfo; 
 	struct sockaddr_storage their_addr;
-	char s[INET6_ADDRSTRLEN];	
 	int status;
 	int yes = 1;
-	if (argc != 4) {
+	
+  if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
 		return -1;
 	}
-  
   if (pthread_mutex_init(&sendmut, NULL) != 0) {
-    printf("Error: send mutex init failed\n");
+    fprintf(stderr, "Error: send mutex init failed\n");
     return -1;
   }
 	if (pthread_mutex_init(&receivemut, NULL) != 0) {
-    printf("Error: receive mutex init failed\n");
+    fprintf(stderr, "Error: receive mutex init failed\n");
     return -1;
   }
 
@@ -243,11 +244,12 @@ int main(int argc, char* argv[]) {
     servinfo = q;
 
   }
-  
+
   initscr();
   cbreak();
   getmaxyx(stdscr, row, col);
 	keypad(stdscr, TRUE);
+ 
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);
   

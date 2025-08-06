@@ -27,12 +27,13 @@ pthread_mutex_t sendmut, receivemut;
 int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
 int row, col;
+
 /*
 void *input(void *arg) {
   char msg[128];
   while (1) {
     memset(msg, 0, 128);
-    printf("Type a message: ");
+    printf("Typpe a message: ");
     fgets(msg, sizeof(msg), stdin);
     pthread_mutex_lock(&sendmut);
     ListAppend(sendlist, msg);
@@ -56,8 +57,6 @@ void *output(void *arg) {
 
   return 0;
 }
-
-
 */
 
 void *sender(void *arg) {
@@ -68,10 +67,12 @@ void *sender(void *arg) {
   while (1) {
     pthread_mutex_unlock(&sendmut);
     memset(msg, 0, 128);
-    mvprintw(row - 2, 0, "Type a message: ");
-    refresh();
+    mvprintw(row - 1, 0, "Type a message: ");
     getstr(msg); 
+    refresh();
     bytes = send(confd, msg, sizeof(msg), 0);
+    move(row - 1, 0);
+    clrtoeol();
     if (bytes == -1) {
       perror("send");
       pthread_exit(&error);
@@ -87,9 +88,12 @@ void *receiver(void *arg) {
   while (1) {
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
-    
     if (bytes != -1) {
-      mvprintw(row - 3, 10, ("Message: %s", buf));
+      move(0, 0);
+      deleteln();
+      refresh();
+      mvprintw(row - 2, 0, "Message: %s", buf);
+      move(row - 1, 16); 
       refresh();
     }
     else if (bytes == 0) {
@@ -241,8 +245,10 @@ int main(int argc, char* argv[]) {
   }
   
   initscr();
+  cbreak();
   getmaxyx(stdscr, row, col);
-	pthread_create(&send_thread, NULL, sender, NULL);
+	keypad(stdscr, TRUE);
+  pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);
   
   pthread_join(send_thread, NULL);

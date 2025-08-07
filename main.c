@@ -23,6 +23,7 @@
 #define BACKLOG 10
 
 LIST *receivelist, *sendlist;
+pthread_t input_thread, send_thread, receive_thread, output_thread;
 pthread_mutex_t sendmut, receivemut;
 int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
@@ -79,7 +80,8 @@ void *sender(void *arg) {
     move(row - 1, 0);
     clrtoeol();
     refresh();
-    if ((strncmp(msg, "/c", 3)) == 0) {
+    if ((strncmp(msg, "/c", 2)) == 0) {
+      pthread_cancel(receive_thread);
       pthread_exit(&closed);
     }
     if (bytes == -1) {
@@ -98,6 +100,10 @@ void *receiver(void *arg) {
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
     buf[bytes] = '\0';
+    if ((strncmp(buf, "/c", 2)) == 0) {
+      pthread_cancel(send_thread);
+      pthread_exit(&closed);
+    }
     if (bytes != -1) {
       move(0, 0);
       deleteln();
@@ -115,9 +121,7 @@ void *receiver(void *arg) {
       pthread_exit(&error);
     }
     
-    if ((strncmp(buf, "/c", 3)) == 0) {
-      pthread_exit(&closed);
-    }
+    
   }
 
   return 0;
@@ -132,7 +136,6 @@ void *get_in_addr(struct sockaddr *sa) {
 }
 
 int main(int argc, char* argv[]) {
-	pthread_t input_thread, send_thread, receive_thread, output_thread;
 	socklen_t sin_size;
 	struct addrinfo *p, *q;
 	struct addrinfo hints;
@@ -270,7 +273,9 @@ int main(int argc, char* argv[]) {
   pthread_join(receive_thread, NULL);
   close(sockfd);
   close(confd);
+  refresh();
   endwin();
-	return 0;
+	printf("Connection closed.\n");
+  return 0;
 }
 

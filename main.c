@@ -79,6 +79,9 @@ void *sender(void *arg) {
     move(row - 1, 0);
     clrtoeol();
     refresh();
+    if ((strncmp(msg, "/c", 3)) == 0) {
+      pthread_exit(&closed);
+    }
     if (bytes == -1) {
       perror("send");
       pthread_exit(&error);
@@ -94,7 +97,7 @@ void *receiver(void *arg) {
   while (1) {
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
-    
+    buf[bytes] = '\0';
     if (bytes != -1) {
       move(0, 0);
       deleteln();
@@ -110,6 +113,10 @@ void *receiver(void *arg) {
     else {
       perror("recv");
       pthread_exit(&error);
+    }
+    
+    if ((strncmp(buf, "/c", 3)) == 0) {
+      pthread_exit(&closed);
     }
   }
 

@@ -27,7 +27,8 @@ pthread_mutex_t sendmut, receivemut;
 int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
 int row, col;
-char s[INET6_ADDRSTRLEN];	
+char s[INET6_ADDRSTRLEN];
+char closed[] = "Connection closed.";
 
 /*
 void *input(void *arg) {
@@ -66,14 +67,18 @@ void *sender(void *arg) {
   char error[] = "pthread sender exit";
   
   while (1) {
-    pthread_mutex_unlock(&sendmut);
     memset(msg, 0, 128);
     mvprintw(row - 1, 0, "Type a message: ");
     getstr(msg); 
-    refresh();
     bytes = send(confd, msg, sizeof(msg), 0);
+    move(0, 0);
+    deleteln();
+    move(row - 2, 0);
+    deleteln();
+    mvprintw(row - 2, 0, "You: %s", msg);
     move(row - 1, 0);
     clrtoeol();
+    refresh();
     if (bytes == -1) {
       perror("send");
       pthread_exit(&error);
@@ -89,6 +94,7 @@ void *receiver(void *arg) {
   while (1) {
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
+    
     if (bytes != -1) {
       move(0, 0);
       deleteln();

@@ -31,19 +31,19 @@ int row, col;
 char s[INET6_ADDRSTRLEN];
 char closed[] = "Connection closed.";
 
-/*
 void *input(void *arg) {
   char msg[128];
   while (1) {
+    pthread_mutex_unlock(&sendmut);
     memset(msg, 0, 128);
-    printf("Typpe a message: ");
-    fgets(msg, sizeof(msg), stdin);
-    pthread_mutex_lock(&sendmut);
+    mvprintw(row - 1, 0, "Type a message: ");
+    getstr(msg);
     ListAppend(sendlist, msg);
     pthread_mutex_unlock(&sendmut);
   }	
 	return 0;
 }
+/*
 void *output(void *arg) {
   char msg[128];
   while (1) {
@@ -61,16 +61,15 @@ void *output(void *arg) {
   return 0;
 }
 */
-
 void *sender(void *arg) {
   char msg[128];
   int bytes;
   char error[] = "pthread sender exit";
   
   while (1) {
-    memset(msg, 0, 128);
-    mvprintw(row - 1, 0, "Type a message: ");
-    getstr(msg); 
+    pthread_mutex_unlock(&sendmut);
+    ListFirst(sendlist);
+    strcpy(msg, (char*)ListCurr(sendlist)); 
     bytes = send(confd, msg, sizeof(msg), 0);
     move(0, 0);
     deleteln();
@@ -82,12 +81,14 @@ void *sender(void *arg) {
     refresh();
     if ((strncmp(msg, "/c", 2)) == 0) {
       pthread_cancel(receive_thread);
+      pthread_cancel(input_thread);
       pthread_exit(&closed);
     }
     if (bytes == -1) {
       perror("send");
       pthread_exit(&error);
     }
+    pthread_mutex_unlock(&sendmut);
   }
   return 0;	
 }
@@ -266,6 +267,7 @@ int main(int argc, char* argv[]) {
   getmaxyx(stdscr, row, col);
 	keypad(stdscr, TRUE);
  
+  pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&receive_thread, NULL, receiver,  NULL);
   

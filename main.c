@@ -19,27 +19,40 @@
 #include <list.h>
 #include <ncurses.h>
 
-#define MAXBUFSIZE 30
+#define MAXBUFSIZE 29
 #define BACKLOG 10
 
 LIST *receivelist, *sendlist;
 pthread_t input_thread, send_thread, receive_thread, output_thread;
-pthread_mutex_t sendmut, receivemut;
+pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut;
+pthread_cond_t sendcv, receivecv;
 int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
 int row, col;
 char s[INET6_ADDRSTRLEN];
 char closed[] = "Connection closed.";
 
+/* Accept input from the user and add it to the send list */
 void *input(void *arg) {
-  char msg[128];
+  char *msg;
   while (1) {
+    msg = malloc(128);
     pthread_mutex_unlock(&sendmut);
     memset(msg, 0, 128);
     mvprintw(row - 1, 0, "Type a message: ");
     getstr(msg);
     ListAppend(sendlist, msg);
     pthread_mutex_unlock(&sendmut);
+    if (ListCount(sendlist) == 1) {
+      pthread_cond_signal(&sendcv);
+    }
+    move(0, 0);
+    deleteln();
+    move(row - 2, 0);
+    deleteln();
+    mvprintw(row - 2, 0, "You: %s", msg);
+    mvprintw(row - 1, 0, "Type a message: ");
+    refresh();
   }	
 	return 0;
 }
@@ -61,24 +74,31 @@ void *output(void *arg) {
   return 0;
 }
 */
+
+/* Take an item off the send list and send it to the other user */
 void *sender(void *arg) {
-  char msg[128];
+  char *msg;
   int bytes;
   char error[] = "pthread sender exit";
   
   while (1) {
+    /* Check if the list has any content to send 
+     * If not, wait for some */
+    if (ListCount(sendlist) == 0) {
+      pthread_mutex_lock(&sendcvmut);
+      pthread_cond_wait(&sendcv, &sendcvmut);
+      pthread_mutex_unlock(&sendcvmut);
+    }
+    msg = malloc(128);
+    /* Obtain mutex, get and then remove message 
+     * from the list, send it */
     pthread_mutex_unlock(&sendmut);
     ListFirst(sendlist);
-    strcpy(msg, (char*)ListCurr(sendlist)); 
-    bytes = send(confd, msg, sizeof(msg), 0);
-    move(0, 0);
-    deleteln();
-    move(row - 2, 0);
-    deleteln();
-    mvprintw(row - 2, 0, "You: %s", msg);
-    move(row - 1, 0);
-    clrtoeol();
-    refresh();
+    strcpy(msg, (char*)ListCurr(sendlist));
+    ListRemove(sendlist);
+    bytes = send(confd, msg, 128, 0);
+    
+    /* Check if the message was the command to close the connection */
     if ((strncmp(msg, "/c", 2)) == 0) {
       pthread_cancel(receive_thread);
       pthread_cancel(input_thread);
@@ -93,11 +113,13 @@ void *sender(void *arg) {
   return 0;	
 }
 
+/* Receive messages and print them */
 void *receiver(void *arg) {
-  char buf[128];
+  char *buf;
   int bytes;
   char error[] = "pthread receiver exit";
   while (1) {
+    buf = malloc(128);
     memset(buf, 0, 128);
     bytes = recv(confd, buf, 128, 0);
     buf[bytes] = '\0';
@@ -121,13 +143,12 @@ void *receiver(void *arg) {
       perror("recv");
       pthread_exit(&error);
     }
-    
-    
   }
 
   return 0;
 }
 
+/* Function to get sockaddr IPv4 or 6. Written by Beej */
 void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
@@ -150,6 +171,9 @@ int main(int argc, char* argv[]) {
 <remote IP> <remote port>\n");
 		return -1;
 	}
+
+  /* Mutex and CV init
+   * These will be used to coordinate the threads */
   if (pthread_mutex_init(&sendmut, NULL) != 0) {
     fprintf(stderr, "Error: send mutex init failed\n");
     return -1;
@@ -158,14 +182,32 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Error: receive mutex init failed\n");
     return -1;
   }
+  if (pthread_mutex_init(&receivecvmut, NULL) != 0) {
+    fprintf(stderr, "Error: receive cv mutex init failed\n");
+    return -1;
+  }
+ if (pthread_mutex_init(&sendcvmut, NULL) != 0) {
+    fprintf(stderr, "Error: send cv mutex init failed\n");
+    return -1;
+  } 
+  if (pthread_cond_init(&sendcv, NULL) != 0) {
+    fprintf(stderr, "Error: send CV init failed\n");
+    return -1;
+  }
+  if (pthread_cond_init(&receivecv, NULL) != 0) {
+    fprintf(stderr, "Error: receive CV init failed\n");
+    return -1;
+  }
 
   local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
   
+  /* Linked lists to hold messages to be sent and printed */
   receivelist = ListCreate();
   sendlist = ListCreate();  
 	
+  /* Decide who is "host" and who is "client" */
   if (atoi(local_port) < atoi(remote_port)) {
     client = 0;
 		memset(&hints, 0, sizeof(hints));
@@ -273,6 +315,13 @@ int main(int argc, char* argv[]) {
   
   pthread_join(send_thread, NULL);
   pthread_join(receive_thread, NULL);
+  pthread_cond_destroy(&sendcv);
+  pthread_cond_destroy(&receivecv);
+  pthread_mutex_destroy(&sendcvmut);
+  pthread_mutex_destroy(&receivecvmut);
+  pthread_mutex_destroy(&sendmut);
+  pthread_mutex_destroy(&receivemut);
+  
   close(sockfd);
   close(confd);
   refresh();

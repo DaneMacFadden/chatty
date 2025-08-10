@@ -13,12 +13,10 @@ typedef struct node {
 } NODE;
 
 typedef struct list {
-	
 	int size;
 	NODE *current;
 	NODE *head;
 	NODE *tail;
-	
 } LIST;
 
 /*

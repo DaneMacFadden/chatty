@@ -86,8 +86,15 @@ void *sender(void *arg) {
     ListFirst(sendlist);
     strcpy(msg, (char*)ListCurr(sendlist));
     ListRemove(sendlist);
-    bytes = send(confd, msg, 128, 0);
     
+    bytes = send(confd, msg, 128, 0);
+    /* Stop execution if the user closes the connection */
+    if ((strncmp(msg, "/c", 2)) == 0) {
+      pthread_cancel(receive_thread);
+      pthread_cancel(input_thread);
+      pthread_cancel(output_thread);
+      pthread_exit(&closed);
+    }
     /* Check if the message was the command to close the connection */
     if ((strncmp(msg, "/c", 2)) == 0) {
       pthread_cancel(receive_thread);

@@ -36,16 +36,22 @@ char closed[] = "Connection closed.";
 void *input(void *arg) {
   char *msg;
   while (1) {
+    /* Get a message from the user */
     msg = malloc(128);
     pthread_mutex_unlock(&sendmut);
     memset(msg, 0, 128);
     mvprintw(row - 1, 0, "Type a message: ");
     getstr(msg);
+
+    /* Add to sendlist */
     ListAppend(sendlist, msg);
     pthread_mutex_unlock(&sendmut);
+
+    /* Wake up thread if it was waiting for a msg to send */
     if (ListCount(sendlist) == 1) {
       pthread_cond_signal(&sendcv);
     }
+    /* NCURSES formatting stuff */
     move(0, 0);
     deleteln();
     move(row - 2, 0);
@@ -56,24 +62,8 @@ void *input(void *arg) {
   }	
 	return 0;
 }
-/*
-void *output(void *arg) {
-  char msg[128];
-  while (1) {
-    memset(msg, 0, 128);
-    pthread_mutex_lock(&receivemut);
-    if (ListCount(receivelist) != 0) {
-      ListFirst(receivelist);
-      strcpy(msg, ListCurr(receivelist));
-      ListRemove(receivelist);
-      printf("%s\n", msg); 
-    }
-    pthread_mutex_unlock(&receivemut);
-  }
 
-  return 0;
-}
-*/
+
 
 /* Take an item off the send list and send it to the other user */
 void *sender(void *arg) {
@@ -83,7 +73,7 @@ void *sender(void *arg) {
   
   while (1) {
     /* Check if the list has any content to send 
-     * If not, wait for some */
+     * If not, wait for some to arrive */
     if (ListCount(sendlist) == 0) {
       pthread_mutex_lock(&sendcvmut);
       pthread_cond_wait(&sendcv, &sendcvmut);
@@ -91,7 +81,7 @@ void *sender(void *arg) {
     }
     msg = malloc(128);
     /* Obtain mutex, get and then remove message 
-     * from the list, send it */
+     * from the list, send it to other party */
     pthread_mutex_unlock(&sendmut);
     ListFirst(sendlist);
     strcpy(msg, (char*)ListCurr(sendlist));
@@ -125,24 +115,51 @@ void *receiver(void *arg) {
     buf[bytes] = '\0';
     if ((strncmp(buf, "/c", 2)) == 0) {
       pthread_cancel(send_thread);
+      pthread_cancel(input_thread);
+      pthread_cancel(output_thread);
       pthread_exit(&closed);
     }
     if (bytes != -1) {
-      move(0, 0);
-      deleteln();
-      move(row - 2, 0);
-      deleteln();
-      mvprintw(row - 2, 0, "%s: %s", s, buf);
-      mvprintw(row - 1, 0, "Type a message: ");
-      refresh();
-    }
-    else if (bytes == 0) {
-      pthread_exit("connection closed");
+      pthread_mutex_lock(&receivemut);
+      ListAppend(receivelist, buf);
+      pthread_mutex_unlock(&receivemut);
+      
+           
+    
     }
     else {
       perror("recv");
       pthread_exit(&error);
     }
+    if (ListCount(receivelist) == 1) {
+      pthread_cond_signal(&receivecv);
+    }
+  }
+  return 0;
+}
+
+/* Remove a msg from the receivelist and display it */
+void *output(void *arg) {
+  char *msg;
+  while (1) {
+    msg = malloc(128);
+    if (ListCount(receivelist) == 0) {
+      pthread_mutex_lock(&receivecvmut);
+      pthread_cond_wait(&receivecv, &receivecvmut);
+      pthread_mutex_unlock(&receivecvmut);
+    }
+    pthread_mutex_lock(&receivemut);
+    ListFirst(receivelist);
+    strcpy(msg, (char*)ListCurr(receivelist));
+    ListRemove(receivelist);
+    move(0, 0);
+    deleteln();
+    move(row - 2, 0);
+    deleteln();
+    mvprintw(row - 2, 0, "%s: %s", s, msg);
+    mvprintw(row - 1, 0, "Type a message: ");
+    refresh();
+    pthread_mutex_unlock(&receivemut);
   }
 
   return 0;
@@ -286,7 +303,7 @@ int main(int argc, char* argv[]) {
 			}
 		      	inet_ntop(q->ai_family, get_in_addr((struct sockaddr *)q->ai_addr), 
 				  s, sizeof s);
-			printf("Connecting to %s\n", s);
+			printf("Getting chatty with %s\n", s);
 
 			if (connect(confd, q->ai_addr, q->ai_addrlen) == -1) {
 			  perror("Client: connect");
@@ -301,7 +318,6 @@ int main(int argc, char* argv[]) {
 			return 2;
 		}
     servinfo = q;
-
   }
 
   initscr();
@@ -311,12 +327,16 @@ int main(int argc, char* argv[]) {
  
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
-	pthread_create(&receive_thread, NULL, receiver,  NULL);
+	pthread_create(&output_thread, NULL, output, NULL);
+  pthread_create(&receive_thread, NULL, receiver,  NULL);
   
   pthread_join(send_thread, NULL);
   pthread_join(receive_thread, NULL);
+  pthread_join(input_thread, NULL);
+
   pthread_cond_destroy(&sendcv);
   pthread_cond_destroy(&receivecv);
+  
   pthread_mutex_destroy(&sendcvmut);
   pthread_mutex_destroy(&receivecvmut);
   pthread_mutex_destroy(&sendmut);

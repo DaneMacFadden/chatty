@@ -1,6 +1,5 @@
 /*
  * A simple chat program by Dane MacFadden
- *
  */
 
 #include <stdio.h>
@@ -22,15 +21,21 @@
 #define MAXBUFSIZE 29
 #define BACKLOG 10
 
+/* threading stuff */
 LIST *receivelist, *sendlist;
 pthread_t input_thread, send_thread, receive_thread, output_thread;
-pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut;
+pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut, chatmut, typemut;
 pthread_cond_t sendcv, receivecv;
+char closed[] = "Connection closed.";
+
+/* networking stuff */
 int sockfd, confd, client;
 char *remote_machine, *local_port, *remote_port;
-int row, col;
 char s[INET6_ADDRSTRLEN];
-char closed[] = "Connection closed.";
+
+/* ncurses stuff */
+WINDOW *chatlog;
+int row, col, crow, ccol;
 
 /* Accept input from the user and add it to the send list */
 void *input(void *arg) {
@@ -38,12 +43,14 @@ void *input(void *arg) {
   while (1) {
     /* Get a message from the user */
     msg = malloc(128);
-    pthread_mutex_unlock(&sendmut);
     memset(msg, 0, 128);
+    pthread_mutex_lock(&typemut);
     mvprintw(row - 1, 0, "Type a message: ");
     getstr(msg);
+    pthread_mutex_unlock(&typemut);
 
     /* Add to sendlist */
+    pthread_mutex_unlock(&sendmut);
     ListAppend(sendlist, msg);
     pthread_mutex_unlock(&sendmut);
 
@@ -52,18 +59,24 @@ void *input(void *arg) {
       pthread_cond_signal(&sendcv);
     }
     /* NCURSES formatting stuff */
-    move(0, 0);
-    deleteln();
-    move(row - 2, 0);
-    deleteln();
-    mvprintw(row - 2, 0, "You: %s", msg);
+    pthread_mutex_lock(&chatmut);
+    wmove(chatlog, 0, 0);
+    wdeleteln(chatlog);
+    wmove(chatlog, crow - 1, 0);
+    wdeleteln(chatlog);
+    wprintw(chatlog, "You: %s", msg);
+    redrawwin(chatlog);
+    wrefresh(chatlog);
+    pthread_mutex_unlock(&chatmut);
+    
+    pthread_mutex_lock(&typemut);
     mvprintw(row - 1, 0, "Type a message: ");
     refresh();
+    pthread_mutex_unlock(&typemut);
+
   }	
 	return 0;
 }
-
-
 
 /* Take an item off the send list and send it to the other user */
 void *sender(void *arg) {
@@ -86,6 +99,7 @@ void *sender(void *arg) {
     ListFirst(sendlist);
     strcpy(msg, (char*)ListCurr(sendlist));
     ListRemove(sendlist);
+    pthread_mutex_unlock(&sendmut);
     
     bytes = send(confd, msg, 128, 0);
     /* Stop execution if the user closes the connection */
@@ -95,17 +109,10 @@ void *sender(void *arg) {
       pthread_cancel(output_thread);
       pthread_exit(&closed);
     }
-    /* Check if the message was the command to close the connection */
-    if ((strncmp(msg, "/c", 2)) == 0) {
-      pthread_cancel(receive_thread);
-      pthread_cancel(input_thread);
-      pthread_exit(&closed);
-    }
-    if (bytes == -1) {
-      perror("send");
-      pthread_exit(&error);
-    }
-    pthread_mutex_unlock(&sendmut);
+    move(row - 1, 0);
+    clrtoeol();
+    mvprintw(row - 1, 0, "Type a message: ");
+    refresh();
   }
   return 0;	
 }
@@ -130,9 +137,6 @@ void *receiver(void *arg) {
       pthread_mutex_lock(&receivemut);
       ListAppend(receivelist, buf);
       pthread_mutex_unlock(&receivemut);
-      
-           
-    
     }
     else {
       perror("recv");
@@ -159,14 +163,17 @@ void *output(void *arg) {
     ListFirst(receivelist);
     strcpy(msg, (char*)ListCurr(receivelist));
     ListRemove(receivelist);
-    move(0, 0);
-    deleteln();
-    move(row - 2, 0);
-    deleteln();
-    mvprintw(row - 2, 0, "%s: %s", s, msg);
-    mvprintw(row - 1, 0, "Type a message: ");
-    refresh();
     pthread_mutex_unlock(&receivemut);
+   
+    pthread_mutex_lock(&chatmut);
+    wmove(chatlog, 0, 0);
+    wdeleteln(chatlog);
+    wmove(chatlog, crow - 1, 0);
+    wdeleteln(chatlog);
+    mvwprintw(chatlog, crow - 1, 0, "%s: %s", s, msg);
+    redrawwin(chatlog);
+    wrefresh(chatlog);
+    pthread_mutex_unlock(&chatmut);
   }
 
   return 0;
@@ -182,7 +189,7 @@ void *get_in_addr(struct sockaddr *sa) {
 }
 
 int main(int argc, char* argv[]) {
-	socklen_t sin_size;
+  socklen_t sin_size;
 	struct addrinfo *p, *q;
 	struct addrinfo hints;
 	struct addrinfo *servinfo; 
@@ -196,8 +203,7 @@ int main(int argc, char* argv[]) {
 		return -1;
 	}
 
-  /* Mutex and CV init
-   * These will be used to coordinate the threads */
+  /* Mutex and CV init */
   if (pthread_mutex_init(&sendmut, NULL) != 0) {
     fprintf(stderr, "Error: send mutex init failed\n");
     return -1;
@@ -214,6 +220,14 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Error: send cv mutex init failed\n");
     return -1;
   } 
+  if (pthread_mutex_init(&chatmut, NULL) != 0) {
+    fprintf(stderr, "Error: chat mutex init failed\n");
+    return -1;
+  }
+  if (pthread_mutex_init(&typemut, NULL) != 0) {
+    fprintf(stderr, "Error: type mutex init failed\n");
+    return -1;
+  }
   if (pthread_cond_init(&sendcv, NULL) != 0) {
     fprintf(stderr, "Error: send CV init failed\n");
     return -1;
@@ -331,7 +345,8 @@ int main(int argc, char* argv[]) {
   cbreak();
   getmaxyx(stdscr, row, col);
 	keypad(stdscr, TRUE);
- 
+  chatlog = newwin(row - 1, col, 0, 0); 
+  getmaxyx(chatlog, crow, ccol);
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&output_thread, NULL, output, NULL);
@@ -351,6 +366,7 @@ int main(int argc, char* argv[]) {
   
   close(sockfd);
   close(confd);
+  delwin(chatlog);
   refresh();
   endwin();
 	printf("Connection closed.\n");

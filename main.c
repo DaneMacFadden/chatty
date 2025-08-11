@@ -24,7 +24,7 @@
 /* threading stuff */
 LIST *receivelist, *sendlist;
 pthread_t input_thread, send_thread, receive_thread, output_thread;
-pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut, chatmut, typemut;
+pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut;
 pthread_cond_t sendcv, receivecv;
 char closed[] = "Connection closed.";
 
@@ -44,10 +44,9 @@ void *input(void *arg) {
     /* Get a message from the user */
     msg = malloc(128);
     memset(msg, 0, 128);
-    pthread_mutex_lock(&typemut);
-    mvprintw(row - 1, 0, "Type a message: ");
-    getstr(msg);
-    pthread_mutex_unlock(&typemut);
+    mvwprintw(stdscr, row - 1, 0, "Type a message: ");
+    wgetstr(stdscr, msg);
+    wrefresh(stdscr);
 
     /* Add to sendlist */
     pthread_mutex_unlock(&sendmut);
@@ -58,23 +57,8 @@ void *input(void *arg) {
     if (ListCount(sendlist) == 1) {
       pthread_cond_signal(&sendcv);
     }
-    /* NCURSES formatting stuff */
-    pthread_mutex_lock(&chatmut);
-    wmove(chatlog, 0, 0);
-    wdeleteln(chatlog);
-    wmove(chatlog, crow - 1, 0);
-    wdeleteln(chatlog);
-    wprintw(chatlog, "You: %s", msg);
-    redrawwin(chatlog);
-    wrefresh(chatlog);
-    pthread_mutex_unlock(&chatmut);
-    
-    pthread_mutex_lock(&typemut);
-    mvprintw(row - 1, 0, "Type a message: ");
-    refresh();
-    pthread_mutex_unlock(&typemut);
 
-  }	
+      }	
 	return 0;
 }
 
@@ -103,15 +87,23 @@ void *sender(void *arg) {
     
     bytes = send(confd, msg, 128, 0);
     /* Stop execution if the user closes the connection */
-    if ((strncmp(msg, "/c", 2)) == 0) {
+    if ((strncmp(msg, "/c", 2)) == 0 || bytes == -1) {
       pthread_cancel(receive_thread);
       pthread_cancel(input_thread);
       pthread_cancel(output_thread);
       pthread_exit(&closed);
     }
-    move(row - 1, 0);
-    clrtoeol();
-    mvprintw(row - 1, 0, "Type a message: ");
+    
+    /* NCURSES formatting stuff */
+    /* First, update chat log */
+    wmove(chatlog, 0, 0);
+    wdeleteln(chatlog);
+    wmove(chatlog, crow, 0);
+    mvwprintw(chatlog, crow - 1, 0, "You: %s", msg);
+    wrefresh(chatlog);
+    /* Now, clear typed message on bottom line */
+    wmove(stdscr, row - 1, 16);
+    wclrtoeol(stdscr);
     refresh();
   }
   return 0;	
@@ -121,7 +113,7 @@ void *sender(void *arg) {
 void *receiver(void *arg) {
   char *buf;
   int bytes;
-  char error[] = "pthread receiver exit";
+  
   while (1) {
     buf = malloc(128);
     memset(buf, 0, 128);
@@ -137,10 +129,6 @@ void *receiver(void *arg) {
       pthread_mutex_lock(&receivemut);
       ListAppend(receivelist, buf);
       pthread_mutex_unlock(&receivemut);
-    }
-    else {
-      perror("recv");
-      pthread_exit(&error);
     }
     if (ListCount(receivelist) == 1) {
       pthread_cond_signal(&receivecv);
@@ -165,15 +153,14 @@ void *output(void *arg) {
     ListRemove(receivelist);
     pthread_mutex_unlock(&receivemut);
    
-    pthread_mutex_lock(&chatmut);
     wmove(chatlog, 0, 0);
     wdeleteln(chatlog);
     wmove(chatlog, crow - 1, 0);
     wdeleteln(chatlog);
     mvwprintw(chatlog, crow - 1, 0, "%s: %s", s, msg);
-    redrawwin(chatlog);
+    wmove(stdscr, row - 1, 16);
     wrefresh(chatlog);
-    pthread_mutex_unlock(&chatmut);
+    refresh();
   }
 
   return 0;
@@ -220,14 +207,6 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Error: send cv mutex init failed\n");
     return -1;
   } 
-  if (pthread_mutex_init(&chatmut, NULL) != 0) {
-    fprintf(stderr, "Error: chat mutex init failed\n");
-    return -1;
-  }
-  if (pthread_mutex_init(&typemut, NULL) != 0) {
-    fprintf(stderr, "Error: type mutex init failed\n");
-    return -1;
-  }
   if (pthread_cond_init(&sendcv, NULL) != 0) {
     fprintf(stderr, "Error: send CV init failed\n");
     return -1;

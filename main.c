@@ -159,6 +159,7 @@ void *output(void *arg) {
     wdeleteln(chatlog);
     mvwprintw(chatlog, crow - 1, 0, "%s: %s", s, msg);
     wmove(stdscr, row - 1, 16);
+    wclrtoeol(stdscr);
     wrefresh(chatlog);
     refresh();
   }

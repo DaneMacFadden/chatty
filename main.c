@@ -42,8 +42,8 @@ void *input(void *arg) {
   char *msg;
   while (1) {
     /* Get a message from the user */
-    msg = malloc(128);
-    memset(msg, 0, 128);
+    msg = malloc(512);
+    memset(msg, 0, 512);
     mvwprintw(stdscr, row - 1, 0, "Type a message: ");
     wgetstr(stdscr, msg);
     wrefresh(stdscr);
@@ -76,7 +76,7 @@ void *sender(void *arg) {
       pthread_cond_wait(&sendcv, &sendcvmut);
       pthread_mutex_unlock(&sendcvmut);
     }
-    msg = malloc(128);
+    msg = malloc(512);
     /* Obtain mutex, get and then remove message 
      * from the list, send it to other party */
     pthread_mutex_unlock(&sendmut);
@@ -85,7 +85,7 @@ void *sender(void *arg) {
     ListRemove(sendlist);
     pthread_mutex_unlock(&sendmut);
     
-    bytes = send(confd, msg, 128, 0);
+    bytes = send(confd, msg, 512, 0);
     /* Stop execution if the user closes the connection */
     if ((strncmp(msg, "/c", 2)) == 0 || bytes == -1) {
       pthread_cancel(receive_thread);
@@ -115,9 +115,9 @@ void *receiver(void *arg) {
   int bytes;
   
   while (1) {
-    buf = malloc(128);
-    memset(buf, 0, 128);
-    bytes = recv(confd, buf, 128, 0);
+    buf = malloc(512);
+    memset(buf, 0, 512);
+    bytes = recv(confd, buf, 512, 0);
     buf[bytes] = '\0';
     if ((strncmp(buf, "/c", 2)) == 0) {
       pthread_cancel(send_thread);
@@ -141,7 +141,7 @@ void *receiver(void *arg) {
 void *output(void *arg) {
   char *msg;
   while (1) {
-    msg = malloc(128);
+    msg = malloc(512);
     if (ListCount(receivelist) == 0) {
       pthread_mutex_lock(&receivecvmut);
       pthread_cond_wait(&receivecv, &receivecvmut);
@@ -160,7 +160,6 @@ void *output(void *arg) {
     mvwprintw(chatlog, crow - 1, 0, "%s: %s", s, msg);
     wrefresh(chatlog);
   }
-
   return 0;
 }
 

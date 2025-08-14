@@ -4,6 +4,7 @@
 
 #define _XOPEN_SOURCE 700
 #include <wchar.h>
+#include <locale.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -36,9 +37,8 @@ int sockfd, confd;
 char *remote_machine, *local_port, *remote_port;
 char s[INET6_ADDRSTRLEN];
 
-/* ncurses stuff */
-WINDOW *chatlog;
-int row, col, crow, ccol;
+/* notcurses stuff */
+struct notcurses *nc;
 
 /* Accept input from the user and add it to the send list */
 void *input(void *arg) {
@@ -47,10 +47,6 @@ void *input(void *arg) {
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
-    mvwprintw(stdscr, row - 1, 0, "Type a message: ");
-    wgetstr(stdscr, msg);
-    wrefresh(stdscr);
-
     /* Add to sendlist */
     pthread_mutex_unlock(&sendmut);
     ListAppend(sendlist, msg);
@@ -97,17 +93,6 @@ void *sender(void *arg) {
       pthread_exit(&closed);
     }
     
-    /* NCURSES formatting stuff */
-    /* First, update chat log */
-    wmove(chatlog, 0, 0);
-    wdeleteln(chatlog);
-    wmove(chatlog, crow, 0);
-    mvwprintw(chatlog, crow - 1, 0, "You: %s", msg);
-    wrefresh(chatlog);
-    /* Now, clear typed message on bottom line */
-    wmove(stdscr, row - 1, 16);
-    wclrtoeol(stdscr);
-    refresh();
   }
   return 0;	
 }
@@ -156,12 +141,6 @@ void *output(void *arg) {
     ListRemove(receivelist);
     pthread_mutex_unlock(&receivemut);
    
-    wmove(chatlog, 0, 0);
-    wdeleteln(chatlog);
-    wmove(chatlog, crow - 1, 0);
-    wdeleteln(chatlog);
-    mvwprintw(chatlog, crow - 1, 0, "%s: %s", s, msg);
-    wrefresh(chatlog);
   }
   return 0;
 }
@@ -318,12 +297,13 @@ int main(int argc, char* argv[]) {
     servinfo = q;
   }
 
-  initscr();
-  cbreak();
-  getmaxyx(stdscr, row, col);
-	keypad(stdscr, TRUE);
-  chatlog = newwin(row - 1, col, 0, 0); 
-  getmaxyx(chatlog, crow, ccol);
+  if (!setlocale(LC_ALL, "")) {
+    return -1;
+  }
+  if ((nc = notcurses_init(NULL, stdout)) == NULL) {
+    return -1;
+  } 
+
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&output_thread, NULL, output, NULL);
@@ -341,12 +321,10 @@ int main(int argc, char* argv[]) {
   pthread_mutex_destroy(&sendmut);
   pthread_mutex_destroy(&receivemut);
   
+  notcurses_stop(nc);
   close(sockfd);
   close(confd);
-  delwin(chatlog);
-  refresh();
-  endwin();
-	printf("Connection closed.\n");
+  printf("Connection closed.\n");
   return 0;
 }
 

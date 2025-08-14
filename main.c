@@ -2,6 +2,8 @@
  * A simple chat program by Dane MacFadden
  */
 
+#define _XOPEN_SOURCE 700
+#include <wchar.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -17,6 +19,7 @@
 #include <signal.h>
 #include <list.h>
 #include <ncurses.h>
+#include <notcurses/notcurses.h>
 
 #define MAXBUFSIZE 29
 #define BACKLOG 10
@@ -29,7 +32,7 @@ pthread_cond_t sendcv, receivecv;
 char closed[] = "Connection closed.";
 
 /* networking stuff */
-int sockfd, confd, client;
+int sockfd, confd;
 char *remote_machine, *local_port, *remote_port;
 char s[INET6_ADDRSTRLEN];
 
@@ -223,7 +226,6 @@ int main(int argc, char* argv[]) {
 	
   /* Decide who is "host" and who is "client" */
   if (atoi(local_port) < atoi(remote_port)) {
-    client = 0;
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
@@ -281,7 +283,6 @@ int main(int argc, char* argv[]) {
     printf("Getting chatty with %s\n", s);
   }
 	else {
-    client = 1;
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;

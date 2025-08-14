@@ -1,9 +1,9 @@
 CC = gcc
 CFLAGS = -g 
-CPPFLAGS = -Wall -Wextra -pedantic -std=gnu90
+CPPFLAGS = -Wall -Wextra -pedantic -std=gnu99
 
 chatty: main.o liblist.a
-	$(CC) $(CFLAGS) -L. -o chatty main.o -llist -lpthread -lncurses
+	$(CC) $(CFLAGS) -L. -o chatty main.o -llist -lpthread -lncurses -lnotcurses
 
 main.o: main.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -I. -c -o main.o main.c

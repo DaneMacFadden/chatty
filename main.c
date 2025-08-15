@@ -321,10 +321,10 @@ int main(int argc, char* argv[]) {
   pthread_mutex_destroy(&sendmut);
   pthread_mutex_destroy(&receivemut);
   
-  notcurses_stop(nc);
   close(sockfd);
   close(confd);
   printf("Connection closed.\n");
+  notcurses_stop(nc);
   return 0;
 }
 

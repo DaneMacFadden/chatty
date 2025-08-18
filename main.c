@@ -1,8 +1,10 @@
 /*
  * A simple chat program by Dane MacFadden
  */
-
+#define MAXBUFSIZE 29
+#define BACKLOG 10
 #define _XOPEN_SOURCE 700
+
 #include <wchar.h>
 #include <locale.h>
 #include <stdio.h>
@@ -22,13 +24,10 @@
 #include <ncurses.h>
 #include <notcurses/notcurses.h>
 
-#define MAXBUFSIZE 29
-#define BACKLOG 10
-
 /* threading stuff */
 LIST *receivelist, *sendlist;
 pthread_t input_thread, send_thread, receive_thread, output_thread;
-pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut;
+pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut, rendermut;
 pthread_cond_t sendcv, receivecv;
 char closed[] = "Connection closed.";
 
@@ -39,14 +38,23 @@ char s[INET6_ADDRSTRLEN];
 
 /* notcurses stuff */
 struct notcurses *nc;
+struct ncplane *chatlog, *stdn;
+int rows, cols;
 
 /* Accept input from the user and add it to the send list */
 void *input(void *arg) {
   char *msg;
+  ncinput inputevent;
   while (1) {
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
+    ncplane_printf_yx(stdn, rows-1, 0, "Type a message: ");
+    
+    pthread_mutex_lock(&rendermut);
+    notcurses_render(nc);
+    pthread_mutex_unlock(&rendermut);
+
     /* Add to sendlist */
     pthread_mutex_unlock(&sendmut);
     ListAppend(sendlist, msg);
@@ -56,8 +64,7 @@ void *input(void *arg) {
     if (ListCount(sendlist) == 1) {
       pthread_cond_signal(&sendcv);
     }
-
-      }	
+  }	
 	return 0;
 }
 
@@ -77,7 +84,8 @@ void *sender(void *arg) {
     }
     msg = malloc(512);
     /* Obtain mutex, get and then remove message 
-     * from the list, send it to other party */
+     * from the list, send it to other party,
+     * release mutex */
     pthread_mutex_unlock(&sendmut);
     ListFirst(sendlist);
     strcpy(msg, (char*)ListCurr(sendlist));
@@ -85,6 +93,13 @@ void *sender(void *arg) {
     pthread_mutex_unlock(&sendmut);
     
     bytes = send(confd, msg, 512, 0);
+    
+    notcurses_cursor_enable(nc, rows, 16); 
+    
+    pthread_mutex_lock(&rendermut);
+    notcurses_render(nc);
+    pthread_mutex_unlock(&rendermut);
+    
     /* Stop execution if the user closes the connection */
     if ((strncmp(msg, "/c", 2)) == 0 || bytes == -1) {
       pthread_cancel(receive_thread);
@@ -92,7 +107,6 @@ void *sender(void *arg) {
       pthread_cancel(output_thread);
       pthread_exit(&closed);
     }
-    
   }
   return 0;	
 }
@@ -140,7 +154,6 @@ void *output(void *arg) {
     strcpy(msg, (char*)ListCurr(receivelist));
     ListRemove(receivelist);
     pthread_mutex_unlock(&receivemut);
-   
   }
   return 0;
 }
@@ -150,7 +163,6 @@ void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
     }
-
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
@@ -162,47 +174,23 @@ int main(int argc, char* argv[]) {
 	struct sockaddr_storage their_addr;
 	int status;
 	int yes = 1;
-	
+	struct ncplane_options nopts = {
+    .y = 0,
+    .x = 0,
+    .rows = 0,
+    .cols = 0
+  };
+
   if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
 		return -1;
 	}
 
-  /* Mutex and CV init */
-  if (pthread_mutex_init(&sendmut, NULL) != 0) {
-    fprintf(stderr, "Error: send mutex init failed\n");
-    return -1;
-  }
-	if (pthread_mutex_init(&receivemut, NULL) != 0) {
-    fprintf(stderr, "Error: receive mutex init failed\n");
-    return -1;
-  }
-  if (pthread_mutex_init(&receivecvmut, NULL) != 0) {
-    fprintf(stderr, "Error: receive cv mutex init failed\n");
-    return -1;
-  }
- if (pthread_mutex_init(&sendcvmut, NULL) != 0) {
-    fprintf(stderr, "Error: send cv mutex init failed\n");
-    return -1;
-  } 
-  if (pthread_cond_init(&sendcv, NULL) != 0) {
-    fprintf(stderr, "Error: send CV init failed\n");
-    return -1;
-  }
-  if (pthread_cond_init(&receivecv, NULL) != 0) {
-    fprintf(stderr, "Error: receive CV init failed\n");
-    return -1;
-  }
-
   local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
-  
-  /* Linked lists to hold messages to be sent and printed */
-  receivelist = ListCreate();
-  sendlist = ListCreate();  
-	
+
   /* Decide who is "host" and who is "client" */
   if (atoi(local_port) < atoi(remote_port)) {
 		memset(&hints, 0, sizeof(hints));
@@ -286,7 +274,7 @@ int main(int argc, char* argv[]) {
 			  perror("Client: connect");
 			  close(sockfd);
 			  continue;
-      			}
+      }
 			break;
 		}
 
@@ -296,14 +284,63 @@ int main(int argc, char* argv[]) {
 		}
     servinfo = q;
   }
+ 
+  /* Mutex and CV init */
+  if (pthread_mutex_init(&sendmut, NULL) != 0) {
+    fprintf(stderr, "Error: send mutex init failed\n");
+    return -1;
+  }
+	if (pthread_mutex_init(&receivemut, NULL) != 0) {
+    fprintf(stderr, "Error: receive mutex init failed\n");
+    return -1;
+  }
+  if (pthread_mutex_init(&receivecvmut, NULL) != 0) {
+    fprintf(stderr, "Error: receive cv mutex init failed\n");
+    return -1;
+  }
+  if (pthread_mutex_init(&sendcvmut, NULL) != 0) {
+    fprintf(stderr, "Error: send cv mutex init failed\n");
+    return -1;
+  }
+  if (pthread_mutex_init(&rendermut, NULL) != 0) {
+    fprintf(stderr, "Error: render mutex init failed\n");
+    return -1;
+  } 
+  if (pthread_cond_init(&sendcv, NULL) != 0) {
+    fprintf(stderr, "Error: send CV init failed\n");
+    return -1;
+  }
+  if (pthread_cond_init(&receivecv, NULL) != 0) {
+    fprintf(stderr, "Error: receive CV init failed\n");
+    return -1;
+  }
 
+  /* Linked lists to hold messages to be sent and printed */
+  receivelist = ListCreate();
+  sendlist = ListCreate();  
+ 
+  /* notcurses init */
   if (!setlocale(LC_ALL, "")) {
     return -1;
   }
   if ((nc = notcurses_init(NULL, stdout)) == NULL) {
     return -1;
-  } 
-
+  }
+  if ((stdn = notcurses_stdplane(nc)) == NULL) {
+    return -1;
+  }
+  
+  notcurses_stddim_yx(nc, &nopts.rows, &nopts.cols);
+  rows = nopts.rows;
+  cols = nopts.cols;
+  nopts.rows -= 1;
+  nopts.cols -= 1;
+  
+  if ((chatlog = ncplane_create(stdn, &nopts)) == NULL) {
+    return -1;
+  }
+  
+  notcurses_cursor_enable(nc, rows, 16);
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&output_thread, NULL, output, NULL);
@@ -327,4 +364,3 @@ int main(int argc, char* argv[]) {
   notcurses_stop(nc);
   return 0;
 }
-

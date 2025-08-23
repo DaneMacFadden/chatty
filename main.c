@@ -38,29 +38,63 @@ char s[INET6_ADDRSTRLEN];
 
 /* notcurses stuff */
 struct notcurses *nc;
-struct ncplane *chatlog, *stdn;
+struct ncplane *chatlog, *stdn, *typingareaplane;
 int rows, cols;
 
 /* Accept input from the user and add it to the send list */
 void *input(void *arg) {
   char *msg;
-  ncinput inputevent;
+  struct ncinput ni;
+  uint32_t character;
+  int i;
+  int placement = 16;
   while (1) {
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
+    i = 0;
     ncplane_printf_yx(stdn, rows-1, 0, "Type a message: ");
     
     pthread_mutex_lock(&rendermut);
     notcurses_render(nc);
     pthread_mutex_unlock(&rendermut);
+    
+    while (1) {
+      character = notcurses_get(nc, NULL, &ni);  
+      if (character == NCKEY_ENTER) {
+        
+        /* Add to sendlist */
+        pthread_mutex_lock(&sendmut);
+        ListAppend(sendlist, msg);
+        pthread_mutex_unlock(&sendmut);
+       
+        ncplane_erase_region(stdn, rows-1, 16, 1, cols);
 
-    /* Add to sendlist */
-    pthread_mutex_unlock(&sendmut);
-    ListAppend(sendlist, msg);
-    pthread_mutex_unlock(&sendmut);
+        pthread_mutex_lock(&rendermut);
+        notcurses_render(nc);
+        pthread_mutex_unlock(&rendermut);
+   
+        break;
+      }
+      if (character == NCKEY_BACKSPACE && i > 0) {
+        i--;
+        msg[i] = '\0';
+      }
+      else if (character < 0x110000 && i < 511) {
+        msg[i++] = (char)character;
+        msg[i] = '\0';
+      }
+      ncplane_printf_yx(stdn, rows-1, 0, "Type a message: %-*s", 511, msg);
+      
+      pthread_mutex_lock(&rendermut);
+      notcurses_render(nc);
+      pthread_mutex_unlock(&rendermut);
+    }
+    pthread_mutex_lock(&rendermut);
+    notcurses_render(nc);
+    pthread_mutex_unlock(&rendermut);
 
-    /* Wake up thread if it was waiting for a msg to send */
+        /* Wake up thread if it was waiting for a msg to send */
     if (ListCount(sendlist) == 1) {
       pthread_cond_signal(&sendcv);
     }
@@ -180,7 +214,15 @@ int main(int argc, char* argv[]) {
     .rows = 0,
     .cols = 0
   };
+  struct ncplane_options typeplaneopts = {
+    .y = 0,
+    .x = 16,
+    .rows = 1,
+    .cols = 0
+  };
 
+  /*typeopts->flags = NCREADER_OPTION_NOCMDKEYS | NCREADER_OPTION_CURSOR;
+*/
   if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
@@ -323,7 +365,7 @@ int main(int argc, char* argv[]) {
   if (!setlocale(LC_ALL, "")) {
     return -1;
   }
-  if ((nc = notcurses_init(NULL, stdout)) == NULL) {
+  if ((nc = notcurses_core_init(NULL, stdout)) == NULL) {
     return -1;
   }
   if ((stdn = notcurses_stdplane(nc)) == NULL) {
@@ -336,11 +378,15 @@ int main(int argc, char* argv[]) {
   nopts.rows -= 1;
   nopts.cols -= 1;
   
+  typeplaneopts.cols = cols - 16;
+  typeplaneopts.y = rows - 1;
+
   if ((chatlog = ncplane_create(stdn, &nopts)) == NULL) {
     return -1;
   }
-  
-  notcurses_cursor_enable(nc, rows, 16);
+  if ((typingareaplane = ncplane_create(stdn, &typeplaneopts)) == NULL) {
+    return -1;
+  }
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&output_thread, NULL, output, NULL);

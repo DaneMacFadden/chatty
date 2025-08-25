@@ -38,8 +38,8 @@ char s[INET6_ADDRSTRLEN];
 
 /* notcurses stuff */
 struct notcurses *nc;
-struct ncplane *chatlog, *stdn;
-int rows, cols;
+struct ncplane *chatlog, *prompt, *stdn;
+unsigned int rows, cols;
 
 /* Accept input from the user and add it to the send list */
 void *input(void *arg) {
@@ -53,7 +53,7 @@ void *input(void *arg) {
     msg = malloc(512);
     memset(msg, 0, 512);
     i = 0;
-    ncplane_printf_yx(stdn, rows - 1, 0, "Type a message: ");
+    ncplane_printf_yx(prompt, 0, 0, "Type a message: ");
     
     pthread_mutex_lock(&rendermut);
     notcurses_render(nc);
@@ -68,7 +68,7 @@ void *input(void *arg) {
         ListAppend(sendlist, msg);
         pthread_mutex_unlock(&sendmut);
        
-        ncplane_erase_region(stdn, rows-1, 16, 1, cols);
+        ncplane_erase_region(prompt, 0, 16, 1, cols);
 
         pthread_mutex_lock(&rendermut);
         notcurses_render(nc);
@@ -80,11 +80,13 @@ void *input(void *arg) {
         i--;
         msg[i] = '\0';
       }
-      else if (i < 511) {
+      else if (i < 5122) {
         msg[i++] = (char)character;
         msg[i] = '\0';
       }
-      ncplane_printf_yx(stdn, rows - 1, 0, "Type a message: %s", msg);
+
+      ncplane_erase_region(prompt, 0, 0, 1, cols);
+      ncplane_printf_yx(prompt, 0, 0, "Type a message: %s", msg);
       
       pthread_mutex_lock(&rendermut);
       notcurses_render(nc);
@@ -219,6 +221,12 @@ int main(int argc, char* argv[]) {
     .y = 0,
     .x = 0,
     .rows = 0,
+    .cols = 0
+  };
+   struct ncplane_options popts = {
+    .y = 0,
+    .x = 0,
+    .rows = 1,
     .cols = 0
   };
     
@@ -371,19 +379,21 @@ int main(int argc, char* argv[]) {
     return -1;
   }
  
-  notcurses_stddim_yx(nc, &nopts.rows, &nopts.cols);
-  rows = nopts.rows;
-  cols = nopts.cols;
-  nopts.rows -= 1;
-  nopts.cols -= 1;
+  notcurses_stddim_yx(nc, &rows, &cols);
+  nopts.rows = rows - 1; 
+  nopts.cols = cols;
+  popts.cols = cols;
+  popts.y = rows - 1;
   notcurses_cursor_disable(nc);
  
   if ((chatlog = ncplane_create(stdn, &nopts)) == NULL) {
     return -1;
   }
-  
+  if ((prompt = ncplane_create(stdn, &popts)) == NULL) {
+    return -1;
+  }
   ncplane_set_scrolling(chatlog, true);
-  ncplane_move_yx(chatlog, rows - 2, 0);
+  ncplane_move_yx(chatlog, nopts.rows, 0);
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&output_thread, NULL, output, NULL);

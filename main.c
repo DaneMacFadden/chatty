@@ -38,7 +38,7 @@ char s[INET6_ADDRSTRLEN];
 
 /* notcurses stuff */
 struct notcurses *nc;
-struct ncplane *chatlog, *stdn, *typingareaplane;
+struct ncplane *chatlog, *stdn;
 int rows, cols;
 
 /* Accept input from the user and add it to the send list */
@@ -47,13 +47,13 @@ void *input(void *arg) {
   struct ncinput ni;
   uint32_t character;
   int i;
-  int placement = 16;
+  
   while (1) {
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
     i = 0;
-    ncplane_printf_yx(stdn, rows-1, 0, "Type a message: ");
+    ncplane_printf_yx(stdn, rows - 1, 0, "Type a message: ");
     
     pthread_mutex_lock(&rendermut);
     notcurses_render(nc);
@@ -80,21 +80,18 @@ void *input(void *arg) {
         i--;
         msg[i] = '\0';
       }
-      else if (character < 0x110000 && i < 511) {
+      else if (i < 511) {
         msg[i++] = (char)character;
         msg[i] = '\0';
       }
-      ncplane_printf_yx(stdn, rows-1, 0, "Type a message: %-*s", 511, msg);
+      ncplane_printf_yx(stdn, rows - 1, 0, "Type a message: %s", msg);
       
       pthread_mutex_lock(&rendermut);
       notcurses_render(nc);
       pthread_mutex_unlock(&rendermut);
     }
-    pthread_mutex_lock(&rendermut);
-    notcurses_render(nc);
-    pthread_mutex_unlock(&rendermut);
-
-        /* Wake up thread if it was waiting for a msg to send */
+    
+    /* Wake up thread if it was waiting for a msg to send */
     if (ListCount(sendlist) == 1) {
       pthread_cond_signal(&sendcv);
     }
@@ -128,8 +125,9 @@ void *sender(void *arg) {
     
     bytes = send(confd, msg, 512, 0);
     
-    notcurses_cursor_enable(nc, rows, 16); 
-    
+    ncplane_move_yx(chatlog, ncplane_y(chatlog) - 1, 0);
+    ncplane_printf(chatlog, "You: %s\n", msg);
+
     pthread_mutex_lock(&rendermut);
     notcurses_render(nc);
     pthread_mutex_unlock(&rendermut);
@@ -145,7 +143,7 @@ void *sender(void *arg) {
   return 0;	
 }
 
-/* Receive messages and print them */
+/* Receive messages, add to print queue */
 void *receiver(void *arg) {
   char *buf;
   int bytes;
@@ -183,11 +181,19 @@ void *output(void *arg) {
       pthread_cond_wait(&receivecv, &receivecvmut);
       pthread_mutex_unlock(&receivecvmut);
     }
+    
     pthread_mutex_lock(&receivemut);
     ListFirst(receivelist);
     strcpy(msg, (char*)ListCurr(receivelist));
     ListRemove(receivelist);
     pthread_mutex_unlock(&receivemut);
+    
+    ncplane_move_yx(chatlog, ncplane_y(chatlog) - 1, 0);
+    ncplane_printf(chatlog, "%s: %s\n", s, msg);
+    
+    pthread_mutex_lock(&rendermut);
+    notcurses_render(nc);
+    pthread_mutex_unlock(&rendermut);
   }
   return 0;
 }
@@ -208,21 +214,14 @@ int main(int argc, char* argv[]) {
 	struct sockaddr_storage their_addr;
 	int status;
 	int yes = 1;
-	struct ncplane_options nopts = {
+  
+  struct ncplane_options nopts = {
     .y = 0,
     .x = 0,
     .rows = 0,
     .cols = 0
   };
-  struct ncplane_options typeplaneopts = {
-    .y = 0,
-    .x = 16,
-    .rows = 1,
-    .cols = 0
-  };
-
-  /*typeopts->flags = NCREADER_OPTION_NOCMDKEYS | NCREADER_OPTION_CURSOR;
-*/
+    
   if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
@@ -371,22 +370,20 @@ int main(int argc, char* argv[]) {
   if ((stdn = notcurses_stdplane(nc)) == NULL) {
     return -1;
   }
-  
+ 
   notcurses_stddim_yx(nc, &nopts.rows, &nopts.cols);
   rows = nopts.rows;
   cols = nopts.cols;
   nopts.rows -= 1;
   nopts.cols -= 1;
-  
-  typeplaneopts.cols = cols - 16;
-  typeplaneopts.y = rows - 1;
-
+  notcurses_cursor_disable(nc);
+ 
   if ((chatlog = ncplane_create(stdn, &nopts)) == NULL) {
     return -1;
   }
-  if ((typingareaplane = ncplane_create(stdn, &typeplaneopts)) == NULL) {
-    return -1;
-  }
+  
+  ncplane_set_scrolling(chatlog, true);
+  ncplane_move_yx(chatlog, rows - 2, 0);
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&output_thread, NULL, output, NULL);
@@ -395,6 +392,7 @@ int main(int argc, char* argv[]) {
   pthread_join(send_thread, NULL);
   pthread_join(receive_thread, NULL);
   pthread_join(input_thread, NULL);
+  pthread_join(output_thread, NULL);
 
   pthread_cond_destroy(&sendcv);
   pthread_cond_destroy(&receivecv);

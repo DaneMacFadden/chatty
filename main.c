@@ -40,6 +40,7 @@ char s[INET6_ADDRSTRLEN];
 struct notcurses *nc;
 struct ncplane *chatlog, *prompt, *stdn;
 unsigned int rows, cols;
+int logsize;
 
 /* Accept input from the user and add it to the send list */
 void *input(void *arg) {
@@ -49,6 +50,7 @@ void *input(void *arg) {
   int i;
   
   while (1) {
+    logsize = 0;
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
@@ -76,11 +78,18 @@ void *input(void *arg) {
    
         break;
       }
-      if (character == NCKEY_BACKSPACE && i > 0) {
+      /* unsure why this doesn't create a scrolling effect */
+      else if (character == NCKEY_SCROLL_UP) {
+        ncplane_scrollup(chatlog, -1);
+      }
+      else if (character == NCKEY_SCROLL_DOWN) {
+        ncplane_scrollup(chatlog, 1);
+      }
+      else if (character == NCKEY_BACKSPACE && i > 0) {
         i--;
         msg[i] = '\0';
       }
-      else if (i < 5122) {
+      else if (i < 511) {
         msg[i++] = (char)character;
         msg[i] = '\0';
       }
@@ -105,7 +114,6 @@ void *input(void *arg) {
 void *sender(void *arg) {
   char *msg;
   int bytes;
-  char error[] = "pthread sender exit";
   
   while (1) {
     /* Check if the list has any content to send 
@@ -127,7 +135,6 @@ void *sender(void *arg) {
     
     bytes = send(confd, msg, 512, 0);
     
-    ncplane_move_yx(chatlog, ncplane_y(chatlog) - 1, 0);
     ncplane_printf(chatlog, "You: %s\n", msg);
 
     pthread_mutex_lock(&rendermut);
@@ -190,9 +197,7 @@ void *output(void *arg) {
     ListRemove(receivelist);
     pthread_mutex_unlock(&receivemut);
     
-    ncplane_move_yx(chatlog, ncplane_y(chatlog) - 1, 0);
     ncplane_printf(chatlog, "%s: %s\n", s, msg);
-    
     pthread_mutex_lock(&rendermut);
     notcurses_render(nc);
     pthread_mutex_unlock(&rendermut);
@@ -216,7 +221,10 @@ int main(int argc, char* argv[]) {
 	struct sockaddr_storage their_addr;
 	int status;
 	int yes = 1;
-  
+ 
+  struct notcurses_options opts = {
+    .flags = NCOPTION_SUPPRESS_BANNERS
+  };
   struct ncplane_options nopts = {
     .y = 0,
     .x = 0,
@@ -229,7 +237,7 @@ int main(int argc, char* argv[]) {
     .rows = 1,
     .cols = 0
   };
-    
+     
   if (argc != 4) {
 		printf("Wrong number of arguments. Usage: ./chatty <local port> \
 <remote IP> <remote port>\n");
@@ -239,6 +247,8 @@ int main(int argc, char* argv[]) {
   local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
+
+  logsize = 0;
 
   /* Decide who is "host" and who is "client" */
   if (atoi(local_port) < atoi(remote_port)) {
@@ -372,7 +382,7 @@ int main(int argc, char* argv[]) {
   if (!setlocale(LC_ALL, "")) {
     return -1;
   }
-  if ((nc = notcurses_core_init(NULL, stdout)) == NULL) {
+  if ((nc = notcurses_core_init(&opts, stdout)) == NULL) {
     return -1;
   }
   if ((stdn = notcurses_stdplane(nc)) == NULL) {
@@ -380,7 +390,7 @@ int main(int argc, char* argv[]) {
   }
  
   notcurses_stddim_yx(nc, &rows, &cols);
-  nopts.rows = rows - 1; 
+  nopts.rows = rows; 
   nopts.cols = cols;
   popts.cols = cols;
   popts.y = rows - 1;
@@ -393,7 +403,6 @@ int main(int argc, char* argv[]) {
     return -1;
   }
   ncplane_set_scrolling(chatlog, true);
-  ncplane_move_yx(chatlog, nopts.rows, 0);
   pthread_create(&input_thread, NULL, input, NULL);
   pthread_create(&send_thread, NULL, sender, NULL);
 	pthread_create(&output_thread, NULL, output, NULL);

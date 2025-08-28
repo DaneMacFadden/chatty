@@ -32,25 +32,22 @@ pthread_cond_t sendcv, receivecv;
 char closed[] = "Connection closed.";
 
 /* networking stuff */
-int sockfd, confd;
-char *remote_machine, *local_port, *remote_port;
+int confd, sockfd;
 char s[INET6_ADDRSTRLEN];
 
 /* notcurses stuff */
 struct notcurses *nc;
 struct ncplane *chatlog, *prompt, *stdn;
 unsigned int rows, cols;
-int logsize;
 
 /* Accept input from the user and add it to the send list */
-void *input(void *arg) {
+void *input() {
   char *msg;
   struct ncinput ni;
   uint32_t character;
   int i;
   
   while (1) {
-    logsize = 0;
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
@@ -60,12 +57,12 @@ void *input(void *arg) {
     pthread_mutex_lock(&rendermut);
     notcurses_render(nc);
     pthread_mutex_unlock(&rendermut);
-    
+   
+    /* Loop to get input */
     while (1) {
       character = notcurses_get(nc, NULL, &ni);  
       if (character == NCKEY_ENTER) {
-        
-        /* Add to sendlist */
+        /* Add to sendlist when user presses enter */
         pthread_mutex_lock(&sendmut);
         ListAppend(sendlist, msg);
         pthread_mutex_unlock(&sendmut);
@@ -78,7 +75,7 @@ void *input(void *arg) {
    
         break;
       }
-      /* unsure why this doesn't create a scrolling effect */
+      /* Unsure why this doesn't create a scrolling effect */
       else if (character == NCKEY_SCROLL_UP) {
         ncplane_scrollup(chatlog, -1);
       }
@@ -94,6 +91,7 @@ void *input(void *arg) {
         msg[i] = '\0';
       }
 
+      /* Print the message as the user types it */
       ncplane_erase_region(prompt, 0, 0, 1, cols);
       ncplane_printf_yx(prompt, 0, 0, "Type a message: %s", msg);
       
@@ -102,7 +100,7 @@ void *input(void *arg) {
       pthread_mutex_unlock(&rendermut);
     }
     
-    /* Wake up thread if it was waiting for a msg to send */
+    /* Wake up thread if it was waiting to have a msg to send */
     if (ListCount(sendlist) == 1) {
       pthread_cond_signal(&sendcv);
     }
@@ -111,10 +109,10 @@ void *input(void *arg) {
 }
 
 /* Take an item off the send list and send it to the other user */
-void *sender(void *arg) {
-  char *msg;
+void *sender() {
+  char *msg, *header;
   int bytes;
-  
+
   while (1) {
     /* Check if the list has any content to send 
      * If not, wait for some to arrive */
@@ -124,9 +122,12 @@ void *sender(void *arg) {
       pthread_mutex_unlock(&sendcvmut);
     }
     msg = malloc(512);
+    header = malloc(519);
+    memset(msg, 0, 512);
+    memset(header, 0, 519);
     /* Obtain mutex, get and then remove message 
-     * from the list, send it to other party,
-     * release mutex */
+     * from the list, unlock mutex,
+     * send message. */
     pthread_mutex_unlock(&sendmut);
     ListFirst(sendlist);
     strcpy(msg, (char*)ListCurr(sendlist));
@@ -135,12 +136,18 @@ void *sender(void *arg) {
     
     bytes = send(confd, msg, 512, 0);
     
-    ncplane_printf(chatlog, "You: %s\n", msg);
-
-    pthread_mutex_lock(&rendermut);
-    notcurses_render(nc);
-    pthread_mutex_unlock(&rendermut);
+    /* Append message to header and add to print list */
+    strcpy(header, "You: ");
+    strncat(header, msg, strlen(msg));
+    pthread_mutex_lock(&receivemut);
+    ListAppend(receivelist, header);
+    pthread_mutex_unlock(&receivemut);
     
+    /* Wake thread waiting for message to print */
+    if (ListCount(receivelist) == 1) {
+      pthread_cond_signal(&receivecv);
+    }
+
     /* Stop execution if the user closes the connection */
     if ((strncmp(msg, "/c", 2)) == 0 || bytes == -1) {
       pthread_cancel(receive_thread);
@@ -153,26 +160,37 @@ void *sender(void *arg) {
 }
 
 /* Receive messages, add to print queue */
-void *receiver(void *arg) {
-  char *buf;
+void *receiver() {
+  char *buf, *header;
   int bytes;
   
   while (1) {
     buf = malloc(512);
+    header = malloc(strlen(s) + 514);
     memset(buf, 0, 512);
+    memset(header, 0, strlen(s) + 514);
+    strcpy(header, s);
+    strncat(header, ": ", 3);
+    
     bytes = recv(confd, buf, 512, 0);
-    buf[bytes] = '\0';
+    strncat(header, buf, strlen(buf));
+    
+    /* Stop execution if the user closes the connection */
     if ((strncmp(buf, "/c", 2)) == 0) {
       pthread_cancel(send_thread);
       pthread_cancel(input_thread);
       pthread_cancel(output_thread);
       pthread_exit(&closed);
     }
+    
+    /* Add message to list for other thread to print */
     if (bytes != -1) {
       pthread_mutex_lock(&receivemut);
-      ListAppend(receivelist, buf);
+      ListAppend(receivelist, header);
       pthread_mutex_unlock(&receivemut);
     }
+    
+    /* Signal output thread, if it was waiting for something to print */
     if (ListCount(receivelist) == 1) {
       pthread_cond_signal(&receivecv);
     }
@@ -181,23 +199,27 @@ void *receiver(void *arg) {
 }
 
 /* Remove a msg from the receivelist and display it */
-void *output(void *arg) {
+void *output() {
   char *msg;
   while (1) {
-    msg = malloc(512);
+    msg = malloc(512 + strlen(s));
+
+    /* Block if there's nothing to output */
     if (ListCount(receivelist) == 0) {
       pthread_mutex_lock(&receivecvmut);
       pthread_cond_wait(&receivecv, &receivecvmut);
       pthread_mutex_unlock(&receivecvmut);
     }
     
+    /* Remove a message from the list and print it to chatlog */
     pthread_mutex_lock(&receivemut);
     ListFirst(receivelist);
     strcpy(msg, (char*)ListCurr(receivelist));
     ListRemove(receivelist);
     pthread_mutex_unlock(&receivemut);
     
-    ncplane_printf(chatlog, "%s: %s\n", s, msg);
+    ncplane_printf(chatlog, "%s\n", msg);
+    
     pthread_mutex_lock(&rendermut);
     notcurses_render(nc);
     pthread_mutex_unlock(&rendermut);
@@ -214,6 +236,7 @@ void *get_in_addr(struct sockaddr *sa) {
 }
 
 int main(int argc, char* argv[]) {
+  char *remote_machine, *local_port, *remote_port;
   socklen_t sin_size;
 	struct addrinfo *p, *q;
 	struct addrinfo hints;
@@ -247,8 +270,6 @@ int main(int argc, char* argv[]) {
   local_port = argv[1];
 	remote_machine = argv[2];
 	remote_port = argv[3];
-
-  logsize = 0;
 
   /* Decide who is "host" and who is "client" */
   if (atoi(local_port) < atoi(remote_port)) {
@@ -423,7 +444,9 @@ int main(int argc, char* argv[]) {
   
   close(sockfd);
   close(confd);
-  printf("Connection closed.\n");
+  ListFree(receivelist);
+  ListFree(sendlist);
   notcurses_stop(nc);
+  printf("Connection closed.\n");
   return 0;
 }

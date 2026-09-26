@@ -210,6 +210,7 @@ void *output(void *arg) {
     pthread_mutex_lock(&context->mut_render);
     notcurses_render(context->ctx_nc);
     pthread_mutex_unlock(&context->mut_render);
+    
   }
   return 0;
 }
@@ -236,7 +237,7 @@ int main(int argc, char* argv[]) {
 	int yes = 1;
 
   /* threading stuff */
-  LIST *receivelist, *sendlist;
+  LIST *receivelist, *sendlist, *history;
   pthread_t input_thread, send_thread, receive_thread, output_thread;
   pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut, rendermut;
   pthread_cond_t sendcv, receivecv;
@@ -400,7 +401,8 @@ int main(int argc, char* argv[]) {
 
   /* Linked lists to hold messages to be sent and printed */
   receivelist = ListCreate();
-  sendlist = ListCreate();  
+  sendlist = ListCreate();
+  history = ListCreate();
  
   /* notcurses init */
   if (!setlocale(LC_ALL, "")) {

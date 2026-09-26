@@ -1,0 +1,17 @@
+/* threading stuff */
+LIST *receivelist, *sendlist;
+pthread_t input_thread, send_thread, receive_thread, output_thread;
+pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut, rendermut;
+pthread_cond_t sendcv, receivecv;
+char closed[] = "Connection closed.";
+
+/* networking stuff */
+int confd, sockfd;
+char s[INET6_ADDRSTRLEN];
+
+/* notcurses stuff */
+struct notcurses *nc;
+struct ncplane *chatlog, *prompt, *stdn;
+unsigned int rows, cols;
+
+

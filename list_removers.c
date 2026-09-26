@@ -31,7 +31,6 @@ int ListRemove(LIST *list) {
     list->current = list->current->next;
   }
   
-  unused->data = NULL;
   free(unused->data);
   free(unused);
   list->size--;

@@ -481,6 +481,7 @@ int main(int argc, char* argv[]) {
   close(confd);
   ListFree(receivelist);
   ListFree(sendlist);
+  ListFree(history);
   notcurses_stop(nc);
   printf("%s\n", closed);
   return 0;

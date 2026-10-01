@@ -29,10 +29,12 @@ void *input(void *arg) {
   char *msg;
   struct ncinput ni;
   uint32_t character;
-  int i;
+  int i, savedsize;
   CONTEXT *context = (CONTEXT *)arg; 
 
   while (1) {
+    /* This is the message that will be saved to history linked list */
+    char *savedmsg;
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
@@ -89,7 +91,7 @@ void *input(void *arg) {
 
 /* Take an item off the send list and send it to the other user */
 void *sender(void *arg) {
-  char *msg, *header;
+  char *msg, *header, *savedmsg;
   int bytes;
   CONTEXT *context = (CONTEXT *)arg; 
   
@@ -239,7 +241,12 @@ int main(int argc, char* argv[]) {
   /* threading stuff */
   LIST *receivelist, *sendlist, *history;
   pthread_t input_thread, send_thread, receive_thread, output_thread;
-  pthread_mutex_t sendmut, receivemut, sendcvmut, receivecvmut, rendermut;
+  pthread_mutex_t sendmut, 
+                  receivemut,
+                  sendcvmut,
+                  receivecvmut,
+                  rendermut,
+                  savedmut;
   pthread_cond_t sendcv, receivecv;
   char closed[] = "Connection closed.";
 
@@ -389,7 +396,11 @@ int main(int argc, char* argv[]) {
   if (pthread_mutex_init(&rendermut, NULL) != 0) {
     fprintf(stderr, "Error: render mutex init failed\n");
     return -1;
-  } 
+  }
+  if (pthread_mutex_init(&savedmut, NULL) != 0) {
+    fprintf(stderr, "Error: saved mutex init failed\n");
+    return -1;
+  }
   if (pthread_cond_init(&sendcv, NULL) != 0) {
     fprintf(stderr, "Error: send CV init failed\n");
     return -1;

@@ -29,12 +29,10 @@ void *input(void *arg) {
   char *msg;
   struct ncinput ni;
   uint32_t character;
-  int i, savedsize;
+  int i;
   CONTEXT *context = (CONTEXT *)arg; 
 
   while (1) {
-    /* This is the message that will be saved to history linked list */
-    char *savedmsg;
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
@@ -71,6 +69,9 @@ void *input(void *arg) {
         msg[i++] = (char)character;
         msg[i] = '\0';
       }
+      /*else if (i == 511) {
+        break;
+      }*/
 
       /* Print the message as the user types it */
       ncplane_erase_region(context->plane_prompt, 0, 0, 1, context->ctx_cols);
@@ -85,13 +86,14 @@ void *input(void *arg) {
     if (ListCount(context->ctx_sendlist) == 1) {
       pthread_cond_signal(&context->cv_send);
     }
+    free(msg);
   }	
 	return 0;
 }
 
 /* Take an item off the send list and send it to the other user */
 void *sender(void *arg) {
-  char *msg, *header, *savedmsg;
+  char *msg, *header;
   int bytes;
   CONTEXT *context = (CONTEXT *)arg; 
   
@@ -131,15 +133,15 @@ void *sender(void *arg) {
     /* Append message to header and add to print list */
     strcpy(header, "You: ");
     strncat(header, msg, strlen(msg));
-    
+   
+    /* Add to receive list. This is done to print the received and
+     * sent messages in order */
     pthread_mutex_lock(&context->mut_recv);
     ListAppend(context->ctx_recvlist, header);
     pthread_mutex_unlock(&context->mut_recv);
     
     /* Wake thread waiting for message to print */
-    if (ListCount(context->ctx_recvlist) == 1) {
-      pthread_cond_signal(&context->cv_recv);
-    }
+    pthread_cond_signal(&context->cv_recv);
   }
   return 0;	
 }
@@ -152,9 +154,9 @@ void *receiver(void *arg) {
 
   while (1) {
     msg = malloc(512);
-    header = malloc(strlen(context->ip) + 514);
+    header = malloc(strlen(context->ip) + 515);
     memset(msg, 0, 512);
-    memset(header, 0, strlen(context->ip) + 514);
+    memset(header, 0, strlen(context->ip) + 515); 
     
     bytes = recv(context->ctx_confd, msg, 512, 0);
     
@@ -189,9 +191,8 @@ void *receiver(void *arg) {
 void *output(void *arg) {
   char *msg;
   CONTEXT *context = (CONTEXT *)arg;  
-
+  
   while (1) {
-    msg = malloc(512 + strlen(context->ip));
 
     /* Block if there's nothing to output */
     if (ListCount(context->ctx_recvlist) == 0) {
@@ -200,6 +201,7 @@ void *output(void *arg) {
       pthread_mutex_unlock(&context->mut_recvcv);
     }
     
+    msg = malloc(515 + strlen(context->ip));
     /* Remove a message from the list and print it to chatlog */
     pthread_mutex_lock(&context->mut_recv);
     ListFirst(context->ctx_recvlist);
@@ -208,11 +210,11 @@ void *output(void *arg) {
     pthread_mutex_unlock(&context->mut_recv);
     
     ncplane_printf(context->plane_log, "%s\n", msg);
-    
     pthread_mutex_lock(&context->mut_render);
     notcurses_render(context->ctx_nc);
     pthread_mutex_unlock(&context->mut_render);
     
+    free(msg); 
   }
   return 0;
 }
@@ -239,7 +241,7 @@ int main(int argc, char* argv[]) {
 	int yes = 1;
 
   /* threading stuff */
-  LIST *receivelist, *sendlist, *history;
+  LIST *receivelist, *sendlist;
   pthread_t input_thread, send_thread, receive_thread, output_thread;
   pthread_mutex_t sendmut, 
                   receivemut,
@@ -413,7 +415,6 @@ int main(int argc, char* argv[]) {
   /* Linked lists to hold messages to be sent and printed */
   receivelist = ListCreate();
   sendlist = ListCreate();
-  history = ListCreate();
  
   /* notcurses init */
   if (!setlocale(LC_ALL, "")) {
@@ -492,7 +493,6 @@ int main(int argc, char* argv[]) {
   close(confd);
   ListFree(receivelist);
   ListFree(sendlist);
-  ListFree(history);
   notcurses_stop(nc);
   printf("%s\n", closed);
   return 0;

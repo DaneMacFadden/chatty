@@ -29,32 +29,40 @@ void *input(void *arg) {
   char *msg;
   struct ncinput ni;
   uint32_t character;
-  int i;
+  int i, s;
   CONTEXT *context = (CONTEXT *)arg; 
-
-  while (1) {
+  
+	while (1) {
     /* Get a message from the user */
     msg = malloc(512);
     memset(msg, 0, 512);
     i = 0;
-    ncplane_printf_yx(context->plane_prompt, 0, 0, "Type a message: ");
     
     pthread_mutex_lock(&context->mut_render);
+    ncplane_printf_yx(context->plane_prompt, 0, 0, "Type a message: ");
     notcurses_render(context->ctx_nc);
     pthread_mutex_unlock(&context->mut_render);
    
     /* Loop to get input */
     while (1) {
-      character = notcurses_get(context->ctx_nc, NULL, &ni);  
-      if (character == NCKEY_ENTER) {
+     character = notcurses_get(context->ctx_nc, NULL, &ni);
+     FILE *f = fopen("/tmp/chat-input.log", "a");
+     if (f != NULL) {
+       fprintf(f, "code=%u id=%u y=%d x=%d\n", character, ni.id, ni.y, ni.x);
+       fclose(f);
+     }
+
+     if (character == NCKEY_ENTER) {
         /* Add to sendlist when user presses enter */
         pthread_mutex_lock(&context->mut_send);
         ListAppend(context->ctx_sendlist, msg);
         pthread_mutex_unlock(&context->mut_send);
-       
+
+        pthread_mutex_lock(&context->mut_render);
         ncplane_erase_region(context->plane_prompt, 0, 16, 1, 
         context->ctx_cols);
-
+        pthread_mutex_unlock(&context->mut_render);
+        
         pthread_mutex_lock(&context->mut_render);
         notcurses_render(context->ctx_nc);
         pthread_mutex_unlock(&context->mut_render);
@@ -74,37 +82,46 @@ void *input(void *arg) {
       }*/
 
       /* Print the message as the user types it */
+      pthread_mutex_lock(&context->mut_render);
       ncplane_erase_region(context->plane_prompt, 0, 0, 1, context->ctx_cols);
       ncplane_printf_yx(context->plane_prompt, 0, 0, "Type a message: %s", msg);
-      
-      pthread_mutex_lock(&context->mut_render);
       notcurses_render(context->ctx_nc);
       pthread_mutex_unlock(&context->mut_render);
-    }
+    
+    } 
     
     /* Wake up thread if it was waiting to have a msg to send */
+    pthread_mutex_lock(&context->mut_sendcv);
     if (ListCount(context->ctx_sendlist) == 1) {
-      pthread_cond_signal(&context->cv_send);
+      pthread_cond_signal(&context->cv_send);    
     }
-    free(msg);
-  }	
+    pthread_mutex_unlock(&context->mut_sendcv);
+    /* s = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+           if (s != 0)
+               handle_error_en(s, "pthread_setcancelstate");*/
+  }
 	return 0;
 }
 
 /* Take an item off the send list and send it to the other user */
 void *sender(void *arg) {
   char *msg, *header;
-  int bytes;
+  int bytes, s;
   CONTEXT *context = (CONTEXT *)arg; 
   
   while (1) {
+    /* 
+    s = pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+    if (s != 0)
+      handle_error_en(s, "pthread_setcancelstate");
+    */
     /* Check if the list has any content to send 
      * If not, wait for some to arrive */
+    pthread_mutex_lock(&context->mut_sendcv);
     if (ListCount(context->ctx_sendlist) == 0) {
-      pthread_mutex_lock(&context->mut_sendcv);
       pthread_cond_wait(&context->cv_send, &context->mut_sendcv);
-      pthread_mutex_unlock(&context->mut_sendcv);
     }
+    pthread_mutex_unlock(&context->mut_sendcv);
     
     msg = malloc(512);
     header = malloc(519);
@@ -114,7 +131,7 @@ void *sender(void *arg) {
     /* Obtain mutex, get and then remove message 
      * from the list, unlock mutex,
      * send message. */
-    pthread_mutex_unlock(&context->mut_send);
+    pthread_mutex_lock(&context->mut_send);
     ListFirst(context->ctx_sendlist);
     strcpy(msg, (char*)ListCurr(context->ctx_sendlist));
     ListRemove(context->ctx_sendlist);
@@ -142,6 +159,13 @@ void *sender(void *arg) {
     
     /* Wake thread waiting for message to print */
     pthread_cond_signal(&context->cv_recv);
+    
+    free(msg);
+/*
+    s = pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+    if (s != 0)
+      handle_error_en(s, "pthread_setcancelstate");
+  */
   }
   return 0;	
 }
@@ -209,8 +233,8 @@ void *output(void *arg) {
     ListRemove(context->ctx_recvlist);
     pthread_mutex_unlock(&context->mut_recv);
     
-    ncplane_printf(context->plane_log, "%s\n", msg);
     pthread_mutex_lock(&context->mut_render);
+    ncplane_printf(context->plane_log, "%s\n", msg);
     notcurses_render(context->ctx_nc);
     pthread_mutex_unlock(&context->mut_render);
     

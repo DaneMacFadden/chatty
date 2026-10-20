@@ -459,58 +459,39 @@ int main(int argc, char* argv[]) {
   }
   ncplane_set_scrolling(chatlog, true);
  
+  /* Lists to store messages */
   context->ctx_recvlist = receivelist;
   context->ctx_sendlist = sendlist;
+  
+  /* Threads */
   context->thread_in = &input_thread; 
   context->thread_out = &output_thread;
   context->thread_recv = &receive_thread;
   context->thread_send = &send_thread;
+  
+  /* Mutexes */
   context->mut_send = &sendmut;
   context->mut_recv = &receivemut;
   context->mut_sendcv = &sendcvmut;
   context->mut_recvcv = &receivecvmut;
   context->mut_render = &rendermut;
+
+  /* Condition variables */
   context->cv_send = &sendcv;
   context->cv_recv = &receivecv;
-  context->ip = s;// ???
+
+  /* Networking stuff */
+  context->ip = s;
   context->ctx_confd = confd;
+
+  /* Notcurses rendering stuff */
   context->ctx_nc = nc;
   context->plane_log = chatlog;
   context->plane_prompt = prompt;
   context->ctx_rows = rows;
   context->ctx_cols = cols;
   context->ctx_closed = closed;
-   
-  /*
-  CONTEXT context = {
-    .ctx_recvlist = receivelist,
-    .ctx_sendlist = sendlist,
-    
-    .thread_in = &input_thread,
-    .thread_out = &output_thread,
-    .thread_recv = &receive_thread,
-    .thread_send = &send_thread,
-
-    .mut_send = sendmut,
-    .mut_recv = receivemut,
-    .mut_sendcv = sendcvmut,
-    .mut_recvcv = receivecvmut,
-    .mut_render = rendermut,
-
-    .cv_send = sendcv,
-    .cv_recv = receivecv,
-
-    .ip = s,
-    .ctx_confd = confd,
-
-    .ctx_nc = nc,
-    .plane_log = chatlog,
-    .plane_prompt = prompt,
-    .ctx_rows = rows,
-    .ctx_cols = cols,
-    .ctx_closed = closed,
-  };
-*/
+  
   pthread_create(&input_thread, NULL, input, context);
   pthread_create(&send_thread, NULL, sender, context);
 	pthread_create(&output_thread, NULL, output, context);

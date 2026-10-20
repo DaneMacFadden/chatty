@@ -46,11 +46,6 @@ void *input(void *arg) {
     /* Loop to get input */
     while (1) {
      character = notcurses_get(context->ctx_nc, NULL, &ni);
-     FILE *f = fopen("/tmp/chat-input.log", "a");
-     if (f != NULL) {
-       fprintf(f, "code=%u id=%u y=%d x=%d\n", character, ni.id, ni.y, ni.x);
-       fclose(f);
-     }
 
      if (character == NCKEY_ENTER) {
         /* Add to sendlist when user presses enter */
